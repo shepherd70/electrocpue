@@ -10,7 +10,7 @@ Description: Tools for analyzing multi-pass electrofishing data,
     Carle-Strub depletion methods, effort standardization for raw
     and amp-based shocking, model-based zero-inflation handling,
     and regulator-ready report generation.
-License: `use_mit_license()`
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
