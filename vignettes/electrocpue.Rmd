@@ -1,0 +1,138 @@
+---
+title: "Analyzing electrofishing CPUE with electrocpue"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Analyzing electrofishing CPUE with electrocpue}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>",
+  fig.width = 7,
+  fig.height = 4.5,
+  dpi = 96
+)
+```
+
+## Overview
+
+`electrocpue` turns raw multi-pass electrofishing records into
+abundance, density, and catch-per-unit-effort (CPUE) estimates. The
+workflow has four steps:
+
+1. **Validate** the catch and reach-metadata tables.
+2. **Estimate** removal-depletion abundance for each removal series.
+3. **Analyze** — wire validation, estimation, effort standardization,
+   and density together in one call.
+4. **Summarize** repeat surveys up to a reach level with confidence
+   intervals.
+
+```{r library}
+library(electrocpue)
+```
+
+## The example data
+
+The package ships a small simulated dataset: four reaches, each surveyed
+on two dates, with two species and three removal passes per survey.
+
+```{r data}
+head(example_catch)
+
+example_reach
+```
+
+`example_catch` is **long format**: one row per reach × date × pass ×
+species. `example_reach` carries the reach length (and, here, area) used
+to convert abundance into density.
+
+## Step 1 — Validate
+
+`validate_cpue_input()` runs a battery of structural and content checks
+and reports every problem at once. It returns invisibly on success.
+
+```{r validate}
+validate_cpue_input(example_catch, example_reach, strict = FALSE)
+```
+
+## Step 2 — Estimate a single series
+
+The removal estimators work on a vector of per-pass catches. `"auto"`
+uses the Zippin maximum-likelihood estimator and falls back to Carle &
+Strub when the Zippin model fails.
+
+```{r estimate}
+# Brown trout at R01, first visit: 82, 42, 19
+estimate_population(c(82, 42, 19), method = "auto")
+```
+
+The result reports the abundance estimate `N`, its standard error
+`N_se`, the per-pass capture probability `p`, and a `converged` flag.
+
+## Step 3 — Analyze the whole dataset
+
+`analyze_cpue()` does everything at once and returns one tidy row per
+reach × date × species. Here we standardize effort by amp-seconds, which
+requires the `amperage` column present in `example_catch`.
+
+```{r analyze}
+res <- analyze_cpue(
+  example_catch, example_reach,
+  method       = "auto",
+  effort_basis = "amp_seconds"
+)
+
+res[, c("reach_id", "date", "species", "N", "N_se",
+        "density_per_m", "density_per_m2", "cpue")]
+```
+
+Both length-based (`density_per_m`) and areal (`density_per_m2`) density
+are returned; areal density is `NA` when reach area is unavailable.
+
+## Step 4 — Summarize repeat surveys
+
+`summarize_cpue()` collapses the two visits per reach to a single
+reach × species summary with confidence intervals on density. With two
+or more surveys it uses a t-interval on the survey densities; with a
+single survey it uses a Wald interval from the depletion standard error.
+
+```{r summarize}
+smry <- summarize_cpue(res, level = 0.95)
+smry[, c("reach_id", "species", "n_surveys", "N_mean",
+         "density_per_m_mean", "density_per_m_lwr", "density_per_m_upr")]
+```
+
+## Visualizing density with uncertainty
+
+```{r plot, eval = requireNamespace("ggplot2", quietly = TRUE)}
+library(ggplot2)
+
+ggplot(smry, aes(x = reach_id, y = density_per_m_mean, colour = species)) +
+  geom_point(position = position_dodge(width = 0.4), size = 2.5) +
+  geom_errorbar(
+    aes(ymin = density_per_m_lwr, ymax = density_per_m_upr),
+    width = 0.2,
+    position = position_dodge(width = 0.4)
+  ) +
+  labs(
+    x = "Reach", y = "Density (fish / m)", colour = "Species",
+    title = "Estimated linear density by reach",
+    subtitle = "Mean of two surveys; 95% confidence intervals"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+## Choosing an estimator
+
+- **`"zippin"`** — classic maximum-likelihood depletion estimator;
+  reports `NA` when the catch series shows insufficient depletion.
+- **`"carle_strub"`** — weighted-likelihood (Bayesian) estimator; more
+  robust when depletion is weak, and the recommended default for routine
+  use.
+- **`"auto"`** — Zippin first, Carle & Strub as a fallback.
+
+Point estimates and standard errors match `FSA::removal()`, so results
+are directly comparable to that reference implementation.
