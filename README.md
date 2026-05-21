@@ -3,6 +3,7 @@
 # electrocpue
 
 <!-- badges: start -->
+[![R-CMD-check](https://github.com/shepherd70/electrocpue/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/shepherd70/electrocpue/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
 `electrocpue` turns raw multi-pass electrofishing records into
