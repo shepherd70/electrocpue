@@ -16,40 +16,72 @@ knitr::opts_chunk$set(
 # electrocpue
 
 <!-- badges: start -->
+[![R-CMD-check](https://github.com/shepherd70/electrocpue/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/shepherd70/electrocpue/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
-The goal of electrocpue is to ...
+`electrocpue` turns raw multi-pass electrofishing records into
+abundance, density, and catch-per-unit-effort (CPUE) estimates. It
+provides assumption-aware removal-depletion population estimators
+(Zippin and Carle & Strub), effort standardization (raw seconds or
+amp-seconds), and tidy, plot-ready output.
+
+Point estimates and standard errors match `FSA::removal()`, so results
+are directly comparable to that reference implementation — but FSA is
+only a test-time dependency, not required at runtime.
 
 ## Installation
 
-You can install the development version of electrocpue from [GitHub](https://github.com/) with:
+You can install the development version of electrocpue from
+[GitHub](https://github.com/shepherd70/electrocpue) with:
 
 ``` r
 # install.packages("pak")
 pak::pak("shepherd70/electrocpue")
 ```
 
-## Example
+## Workflow
 
-This is a basic example which shows you how to solve a common problem:
+The package follows a four-step workflow: **validate → estimate →
+analyze → summarize**.
 
-```{r example}
+```{r library}
 library(electrocpue)
-## basic example code
 ```
 
-What is special about using `README.Rmd` instead of just `README.md`? You can include R chunks like so:
+### Estimate a single removal series
 
-```{r cars}
-summary(cars)
+`estimate_population()` works on a vector of per-pass catches. The
+default `"auto"` method uses the Zippin maximum-likelihood estimator and
+falls back to Carle & Strub when the Zippin model fails.
+
+```{r estimate}
+estimate_population(c(45, 18, 7))
 ```
 
-You'll still need to render `README.Rmd` regularly, to keep `README.md` up-to-date. `devtools::build_readme()` is handy for this.
+### Analyze a whole dataset
 
-You can also embed plots, for example:
+`analyze_cpue()` validates the inputs, estimates abundance for every
+reach × date × species series, standardizes effort, and converts
+abundance to density. It returns one tidy row per series.
 
-```{r pressure, echo = FALSE}
-plot(pressure)
+```{r analyze}
+res <- analyze_cpue(example_catch, example_reach)
+head(res[, c("reach_id", "date", "species", "N", "N_se", "density_per_m", "cpue")])
 ```
 
-In that case, don't forget to commit and push the resulting figure files, so they display on GitHub and CRAN.
+### Summarize repeat surveys
+
+`summarize_cpue()` rolls repeat survey dates up to a reach × species
+summary with confidence intervals on density.
+
+```{r summarize}
+summarize_cpue(res)[, c("reach_id", "species", "n_surveys", "N_mean",
+                        "density_per_m_mean", "density_per_m_lwr",
+                        "density_per_m_upr")]
+```
+
+## Learn more
+
+See `vignette("electrocpue")` for a complete worked example, including
+effort standardization by amp-seconds and plotting density with
+confidence intervals.

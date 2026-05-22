@@ -2,3 +2,7 @@
 ^\.Rproj\.user$
 ^LICENSE\.md$
 ^README\.Rmd$
+^\.claude$
+^TASKS\.md$
+^data-raw$
+^\.github$
