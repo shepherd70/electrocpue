@@ -60,8 +60,10 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 
 ### Release Prep
 - [x] Bump version to `0.1.0` for first stable release (also fixed placeholder maintainer email; NEWS.md rewritten for 0.1.0)
+- [x] Add CI: `.github/workflows/R-CMD-check.yaml` (full check incl. vignette via pandoc on macOS/Windows/Linux; README badge added)
+- [x] Release PR #1 (`release/v0.1.0` → `main`) merged via merge commit `3c46b15`. **CI green on all 5 jobs** (macOS, Windows, Linux × R release/devel/oldrel) — vignette render confirmed under pandoc, closing the local gap.
 - [ ] Complete `cran-comments.md` if targeting CRAN submission
-- [ ] Tag `v0.1.0` release on GitHub
+- [x] Tag `v0.1.0` — annotated tag at `2dcee27` (an ancestor of `main`) pushed to GitHub.
 
 ---
 
