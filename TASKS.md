@@ -67,6 +67,15 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 
 ---
 
+## Milestone 4 — Cross-package consolidation (future)
+
+### Shared validation kernel (cross-repo with `tritonmr`)
+- [ ] Extract the generic input-validation kernel — `check_required_columns()`, `check_column_types()`, `type_matches()`, `check_no_na()`, and the collect-then-abort pattern in `validate_cpue_input()` (`R/cpue_data_validation.R`) — into the shared layer rather than hand-rolling it here. Fold into `tritonIngest`'s existing contract system (`data_contract.R` / `wq_contract` / `suggest_roles`) or a new small `tritonvalidate` package. Keep electrocpue's *domain* rules local (pass-contiguity `:256`, effort-positive, counts-nonneg-integer, reach-id consistency, species-present).
+- [ ] Add `tritonIngest` (or `tritonvalidate`) to `Imports` and reroute `validate_cpue_input()` to call the shared kernel; preserve the classed `cpue_validation_error` and the collect-all-then-abort UX.
+- [ ] Coordinate with `tritonmr`: `tritonmr/R/data_validation.R::validate_capture_history()` hand-rolls the same required-cols/type/NA kernel but **aborts on the first violation** (electrocpue collects all failures first). Unify on one shared kernel + one failure-UX contract so the mark-recapture/CPUE programs validate consistently. (Source: C:\dev refactor audit, finding H1 — the single highest-value cross-repo consolidation on this axis; est. ~4-6 h.)
+
+---
+
 ## Notes
 
 - Validation module is fully tested (42 tests, all passing clean).
