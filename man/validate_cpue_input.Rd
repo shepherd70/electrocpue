@@ -22,8 +22,9 @@ trigger advisory warnings; if \code{FALSE}, missing optionals are silent.}
 \value{
 Invisibly returns \code{TRUE} if all validation checks pass.
 Otherwise aborts with a classed error of class
-\code{"cpue_validation_error"} whose \code{failures} field contains the
-character vector of all detected problems.
+\code{"cpue_validation_error"} (also \code{"triton_validation_error"}) whose
+\code{failures} field contains the character vector of all detected
+problems.
 }
 \description{
 Runs the full battery of input validation checks against catch and

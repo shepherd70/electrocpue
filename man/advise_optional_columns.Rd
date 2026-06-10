@@ -11,7 +11,7 @@ advise_optional_columns(data, optional, table_name)
 
 \item{optional}{Named character vector of optional columns and types.}
 
-\item{table_name}{Human-readable name of the table (used in error
+\item{table_name}{Human-readable name of the table (used in warning
 messages).}
 }
 \description{
