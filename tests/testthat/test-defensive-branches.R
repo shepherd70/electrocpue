@@ -50,28 +50,9 @@ test_that("Zippin variance helpers return NA on non-finite input", {
   expect_true(is.na(.zippin_p_var(74, NA_real_, 3)))
 })
 
-# ---- type_matches: default (non-special) type -------------------------------
-
-test_that("type_matches falls through to literal comparison for other types", {
-  expect_true(type_matches("logical", "logical"))   # default branch, equal
-  expect_false(type_matches("character", "logical")) # default branch, unequal
-})
-
-# ---- Validation helpers: 'no relevant columns present' guards ----------------
-
-test_that("check_column_types returns no failures when no required cols present", {
-  out <- check_column_types(
-    data.frame(other = 1),
-    c(reach_id = "character"),
-    "catch_data"
-  )
-  expect_identical(out, character(0))
-})
-
-test_that("check_no_na returns no failures when no checked cols present", {
-  out <- check_no_na(data.frame(other = 1), "reach_id", "catch_data")
-  expect_identical(out, character(0))
-})
+# ---- Validation helpers ------------------------------------------------------
+# Generic kernel helpers (type_matches, check_column_types, check_no_na, ...)
+# moved to tritonIngest and are tested there; only domain checks remain here.
 
 test_that("check_counts_nonneg_integer returns no failures without a count col", {
   out <- check_counts_nonneg_integer(data.frame(other = 1))

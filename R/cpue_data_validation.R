@@ -8,20 +8,24 @@
 #               analytical step. Runs every check regardless of earlier
 #               failures and aborts once with a single classed error
 #               listing all problems, so users do not iterate through
-#               failures one at a time.
-# Logic:        1. Check required columns exist in both tables
-#               2. Check column types match the input contract
-#               3. Check no NA in required identifier columns
+#               failures one at a time. Generic schema checks (column
+#               presence, types, NAs) delegate to the shared tritonIngest
+#               validation kernel; CPUE domain rules stay local.
+# Logic:        1. Check required columns exist in both tables    (kernel)
+#               2. Check column types match the input contract    (kernel)
+#               3. Check no NA in required identifier columns     (kernel)
 #               4. Check pass numbers contiguous from 1 per reach x date
 #               5. Check effort > 0 for every record
 #               6. Check counts are non-negative integers
 #               7. Check reach_id consistency across tables
 #               8. Check species present for every reach x date
-#               9. Collate failures; abort with classed error if any
-# Dependencies: dplyr     - tidy data manipulation
+#               9. Collate failures; abort once via the kernel's
+#                  validation_abort() with class cpue_validation_error
+# Dependencies: tritonIngest - shared validation kernel
+#               dplyr     - tidy data manipulation
 #               purrr     - vectorized iteration without rowwise()
-#               rlang     - .data pronoun and classed errors
-#               cli       - formatted error and warning messages
+#               rlang     - .data pronoun
+#               cli       - formatted advisory warnings
 #               glue      - string interpolation
 #               utils     - head() for orphan-id preview
 #-------------------------------------------------------------------------------
@@ -83,8 +87,9 @@
 #'
 #' @return Invisibly returns `TRUE` if all validation checks pass.
 #'   Otherwise aborts with a classed error of class
-#'   `"cpue_validation_error"` whose `failures` field contains the
-#'   character vector of all detected problems.
+#'   `"cpue_validation_error"` (also `"triton_validation_error"`) whose
+#'   `failures` field contains the character vector of all detected
+#'   problems.
 #'
 #' @export
 #' @family validation
@@ -97,19 +102,21 @@
 validate_cpue_input <- function(catch_data, reach_metadata, strict = TRUE) {
 
   # Run all checks; each returns a character vector of failure messages
-  # (empty if the check passes). All collected before raising.
+  # (empty if the check passes). All collected before raising. Generic
+  # schema checks come from the shared tritonIngest kernel; the remaining
+  # checks are CPUE domain rules and stay local.
 
   failures <- c(
-    check_required_columns(catch_data,     .required_catch_cols, "catch_data"),
-    check_required_columns(reach_metadata, .required_reach_cols, "reach_metadata"),
-    check_column_types(catch_data,         .required_catch_cols, "catch_data"),
-    check_column_types(reach_metadata,     .required_reach_cols, "reach_metadata"),
-    check_no_na(
+    tritonIngest::check_required_columns(catch_data,     .required_catch_cols, "catch_data"),
+    tritonIngest::check_required_columns(reach_metadata, .required_reach_cols, "reach_metadata"),
+    tritonIngest::check_column_types(catch_data,         .required_catch_cols, "catch_data"),
+    tritonIngest::check_column_types(reach_metadata,     .required_reach_cols, "reach_metadata"),
+    tritonIngest::check_no_na(
       catch_data,
       c("reach_id", "date", "pass_number", "species"),
       "catch_data"
     ),
-    check_no_na(reach_metadata, "reach_id", "reach_metadata"),
+    tritonIngest::check_no_na(reach_metadata, "reach_id", "reach_metadata"),
     check_pass_contiguity(catch_data),
     check_effort_positive(catch_data),
     check_counts_nonneg_integer(catch_data),
@@ -117,16 +124,7 @@ validate_cpue_input <- function(catch_data, reach_metadata, strict = TRUE) {
     check_species_present(catch_data)
   )
 
-  if (length(failures) > 0) {
-    cli::cli_abort(
-      c(
-        "Input validation failed with {length(failures)} issue{?s}:",
-        rlang::set_names(failures, rep("x", length(failures)))
-      ),
-      class = "cpue_validation_error",
-      failures = failures
-    )
-  }
+  tritonIngest::validation_abort(failures, class = "cpue_validation_error")
 
   # Optional column advisories (advisory only, do not fail validation)
   if (isTRUE(strict)) {
@@ -138,109 +136,10 @@ validate_cpue_input <- function(catch_data, reach_metadata, strict = TRUE) {
 }
 
 
-# ---- Schema checks -----------------------------------------------------------
-
-#' Check that required columns are present in a data frame
-#'
-#' @param data A data frame to check.
-#' @param required Named character vector mapping required column names
-#'   to their expected R types.
-#' @param table_name Human-readable name of the table (used in error
-#'   messages).
-#'
-#' @return Character vector of failure messages; empty if all required
-#'   columns are present.
-#'
-#' @keywords internal
-check_required_columns <- function(data, required, table_name) {
-
-  missing_cols <- setdiff(names(required), names(data))
-  if (length(missing_cols) == 0) return(character(0))
-
-  as.character(glue::glue(
-    "{table_name} is missing required column(s): ",
-    "{paste(missing_cols, collapse = ', ')}"
-  ))
-}
-
-
-#' Check that columns have expected types
-#'
-#' Validates type only for columns that are present; absence is handled
-#' separately by [check_required_columns()].
-#'
-#' @inheritParams check_required_columns
-#'
-#' @return Character vector of failure messages; empty if all present
-#'   columns are of the correct type.
-#'
-#' @keywords internal
-check_column_types <- function(data, required, table_name) {
-
-  present_cols <- intersect(names(required), names(data))
-  if (length(present_cols) == 0) return(character(0))
-
-  type_messages <- purrr::map_chr(present_cols, function(col) {
-    expected <- required[[col]]
-    actual   <- class(data[[col]])[1]
-    if (type_matches(actual, expected)) {
-      NA_character_
-    } else {
-      as.character(glue::glue(
-        "{table_name}${col} should be {expected}, found {actual}"
-      ))
-    }
-  })
-
-  type_messages[!is.na(type_messages)]
-}
-
-
-#' Check whether an actual R class satisfies an expected type spec
-#'
-#' Numeric accepts both numeric and integer; integer is strict; Date
-#' must be Date class.
-#'
-#' @keywords internal
-type_matches <- function(actual, expected) {
-  switch(
-    expected,
-    "numeric"   = actual %in% c("numeric", "integer", "double"),
-    "integer"   = actual == "integer",
-    "character" = actual == "character",
-    "Date"      = actual == "Date",
-    actual == expected
-  )
-}
-
-
 # ---- Content checks ----------------------------------------------------------
-
-#' Check that key columns contain no NA values
-#'
-#' @inheritParams check_required_columns
-#' @param columns Character vector of column names to check.
-#'
-#' @return Character vector of failure messages; empty if no NAs found.
-#'
-#' @keywords internal
-check_no_na <- function(data, columns, table_name) {
-
-  present_cols <- intersect(columns, names(data))
-  if (length(present_cols) == 0) return(character(0))
-
-  na_counts <- purrr::map_int(present_cols, ~ sum(is.na(data[[.x]])))
-  names(na_counts) <- present_cols
-  failing <- na_counts[na_counts > 0]
-  if (length(failing) == 0) return(character(0))
-
-  purrr::imap_chr(failing, function(n, col) {
-    as.character(glue::glue(
-      "{table_name}${col} contains {n} NA value(s)"
-    ))
-  })
-}
-
+# Generic schema checks (check_required_columns, check_column_types,
+# type_matches, check_no_na) live in tritonIngest; only CPUE domain rules
+# are defined below.
 
 #' Check that pass numbers are contiguous from 1 within each reach x date
 #'
@@ -421,8 +320,10 @@ check_species_present <- function(catch_data) {
 #' columns that change downstream behavior (e.g., missing `amperage`
 #' means `effort_basis = "amp_seconds"` is unavailable).
 #'
-#' @inheritParams check_required_columns
+#' @param data A data frame to check.
 #' @param optional Named character vector of optional columns and types.
+#' @param table_name Human-readable name of the table (used in warning
+#'   messages).
 #'
 #' @keywords internal
 advise_optional_columns <- function(data, optional, table_name) {
