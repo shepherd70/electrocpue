@@ -1,6 +1,6 @@
 # electrocpue — Development Task Tracker
 
-Package: `electrocpue` v0.0.0.9000  
+Package: `electrocpue` v0.1.0  
 Goal: Multi-pass electrofishing CPUE analysis toolkit for R
 
 Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
@@ -70,8 +70,8 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 ## Milestone 4 — Cross-package consolidation (future)
 
 ### Shared validation kernel (cross-repo with `tritonmr`)
-- [ ] Extract the generic input-validation kernel — `check_required_columns()`, `check_column_types()`, `type_matches()`, `check_no_na()`, and the collect-then-abort pattern in `validate_cpue_input()` (`R/cpue_data_validation.R`) — into the shared layer rather than hand-rolling it here. Fold into `tritonIngest`'s existing contract system (`data_contract.R` / `wq_contract` / `suggest_roles`) or a new small `tritonvalidate` package. Keep electrocpue's *domain* rules local (pass-contiguity `:256`, effort-positive, counts-nonneg-integer, reach-id consistency, species-present).
-- [ ] Add `tritonIngest` (or `tritonvalidate`) to `Imports` and reroute `validate_cpue_input()` to call the shared kernel; preserve the classed `cpue_validation_error` and the collect-all-then-abort UX.
+- [x] Extract the generic input-validation kernel — `check_required_columns()`, `check_column_types()`, `type_matches()`, `check_no_na()`, and the collect-then-abort pattern in `validate_cpue_input()` (`R/cpue_data_validation.R`) — into the shared layer rather than hand-rolling it here. Done: the kernel now lives in `tritonIngest` (v0.3.1, added in `tritonIngest` commit 8c49515). electrocpue's *domain* rules stay local (pass-contiguity, effort-positive, counts-nonneg-integer, reach-id consistency, species-present).
+- [x] Add `tritonIngest` to `Imports` and reroute `validate_cpue_input()` to call the shared kernel; preserve the classed `cpue_validation_error` and the collect-all-then-abort UX. Done in commit `6e6c764`. **Imports pins `tritonIngest (>= 0.3.1)`** — the kernel functions exist only from 0.3.1, so an older install must fail at resolve time, not with a confusing runtime "not an exported object" error.
 - [ ] Coordinate with `tritonmr`: `tritonmr/R/data_validation.R::validate_capture_history()` hand-rolls the same required-cols/type/NA kernel but **aborts on the first violation** (electrocpue collects all failures first). Unify on one shared kernel + one failure-UX contract so the mark-recapture/CPUE programs validate consistently. (Source: C:\dev refactor audit, finding H1 — the single highest-value cross-repo consolidation on this axis; est. ~4-6 h.)
 
 ---
