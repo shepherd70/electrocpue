@@ -50,7 +50,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 
 ### Testing & QA
 - [x] Achieve ≥ 80% test coverage across all modules — **100%** (all four files). Added `test-defensive-branches.R` (23 tests) covering input-guard aborts, both-estimators-fail, CS single-pass/runaway, non-finite variance guards, and validation helper guards. The one genuinely unreachable branch (Zippin iteration cap) is marked `# nocov` with an explanatory comment.
-- [ ] Add snapshot tests for error message formatting
+- [x] Add snapshot tests for error message formatting — `tests/testthat/test-error-snapshots.R` (16 snapshots in `_snaps/error-snapshots.md`) pinning the fully rendered text of every user-facing abort/warning across validation, estimation, analysis, and summary. Captured under testthat's reproducible output so they're platform-stable.
 - [x] Run `R CMD check` with zero warnings/notes — 0 errors / 0 warnings locally; only NOTE is the environmental "unable to verify current time" clock quirk. (Vignette build skipped locally — pandoc absent. Still to confirm on Windows + macOS CI with pandoc.)
 
 ### Documentation & README
