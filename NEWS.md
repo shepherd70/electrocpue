@@ -1,3 +1,27 @@
+# electrocpue (development version)
+
+Fixes for the four major findings of the 2026-06 audit
+(`docs/electrocpue-audit-2026-06.md`):
+
+* **Declared R dependency now matches the code.** The package uses the
+  native pipe `|>`, so `DESCRIPTION` now requires `R (>= 4.1.0)` instead
+  of the inherited `R (>= 2.10)`, which would have let the package
+  install on R 4.0.x and then fail to parse.
+* **`validate_cpue_input()` now checks reach extent.** A new
+  `check_reach_extent_positive()` rejects a `length_m` that is `0`,
+  negative, or `NA` (and an `area_m2 <= 0` where the optional column is
+  present), closing a gap that let those values pass validation and
+  silently produce `Inf`/`NaN`/negative density downstream.
+* **Carle & Strub flags non-depleting series.** When the catch does not
+  decline across passes (final pass >= first), the estimator now returns
+  `note = "assumption_violated"` with a warning instead of reporting
+  `note = "ok"`; the `"auto"` dispatcher's fallback warning is likewise
+  explicit that the depletion assumption is violated.
+* **`summarize_cpue()` averages CPUE over all surveys.** Because observed
+  CPUE (catch / effort) does not depend on whether the depletion
+  estimator converged, `cpue_mean` is no longer restricted to converged
+  surveys. Abundance and density means remain converged-only.
+
 # electrocpue 0.1.0
 
 First feature-complete release. The package now supports the full

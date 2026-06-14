@@ -23,6 +23,9 @@
 #               zero total catch      -> N = 0,  converged = TRUE  (no detections)
 #               Zippin model failure  -> N = NA, converged = FALSE, warning
 #               Carle-Strub runaway   -> N = NA, converged = FALSE, warning
+#               non-depleting series  -> estimate returned but flagged
+#                 (Carle-Strub: converged = TRUE, note = "assumption_violated",
+#                  warning) when catch does not decline across passes
 # Dependencies: cli   - formatted warnings and errors
 #               glue  - string interpolation
 #-------------------------------------------------------------------------------
@@ -52,7 +55,7 @@
 #'   `catch_total`, `N` (population estimate), `N_se`, `p` (per-pass
 #'   capture probability), `p_se`, `converged` (logical), and `note`
 #'   (one of `"ok"`, `"single_pass"`, `"zero_catch"`, `"model_failure"`,
-#'   `"no_convergence"`).
+#'   `"no_convergence"`, `"assumption_violated"`).
 #'
 #' @details
 #' Point estimates and variances follow the standard removal formulae
@@ -61,6 +64,15 @@
 #' zero total catch is reported as `N = 0` (no fish detected -> zero
 #' density) rather than as a model failure, which is the more useful
 #' convention for downstream CPUE work.
+#'
+#' The removal model assumes catch declines across passes as the local
+#' population is depleted. When it does not -- the final pass catches as
+#' many fish as the first, or more -- Carle & Strub may still return a
+#' numeric estimate, but the depletion assumption is violated and the
+#' result is not trustworthy. Such a series is flagged with
+#' `note = "assumption_violated"` (and a warning) rather than `"ok"`, and
+#' under `method = "auto"` the warning explains that Zippin's stricter
+#' guard rejected the same series outright.
 #'
 #' @references
 #' Zippin, C. (1958). The removal method of population estimation.
@@ -109,7 +121,13 @@ estimate_population <- function(counts,
   # Zippin model failure -> try the more robust Carle-Strub estimator.
   cs <- carle_strub_estimate(counts, alpha = alpha, beta = beta, quiet = TRUE)
   if (!quiet) {
-    if (isTRUE(cs$converged)) {
+    if (identical(cs$note, "assumption_violated")) {
+      cli::cli_warn(c(
+        "Zippin model failed; used Carle & Strub estimate instead.",
+        "!" = "Catch does not decline across passes; the depletion assumption is violated.",
+        "i" = "Interpret the estimate with great caution (see the {.field note} column)."
+      ))
+    } else if (isTRUE(cs$converged)) {
       cli::cli_warn(c(
         "Zippin model failed; used Carle & Strub estimate instead.",
         "i" = "Catch series shows weak depletion; interpret with caution."
@@ -201,6 +219,13 @@ zippin_estimate <- function(counts, quiet = FALSE) {
 #' (Carle & Strub 1978). More robust than Zippin when depletion is weak,
 #' and the recommended default for routine use.
 #'
+#' Unlike Zippin, Carle & Strub does not reject a non-depleting series
+#' outright: when the catch does not decline across passes (the final
+#' pass catches as many fish as the first, or more) it can still converge
+#' to a numeric estimate. That estimate is returned, but flagged with
+#' `note = "assumption_violated"` and a warning rather than `note = "ok"`,
+#' because the depletion assumption it rests on has failed.
+#'
 #' @inheritParams estimate_population
 #'
 #' @return A one-row data frame in the format described in
@@ -248,11 +273,28 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
 
   p <- T / (k * N0 - X)
 
+  # Convergence reached. Guard against a non-depleting profile: a removal
+  # series should show net decline as the local population is removed. If
+  # the final pass catch is not below the first, there is no depletion
+  # signal and the point estimate -- though numerically produced -- is not
+  # trustworthy. Flag it distinctly rather than reporting "ok".
+  note <- "ok"
+  if (counts[k] >= counts[1L]) {
+    note <- "assumption_violated"
+    if (!quiet) {
+      cli::cli_warn(c(
+        "Carle & Strub: catch does not decline across passes (final >= first pass).",
+        "!" = "The removal-depletion assumption is violated; the estimate is unreliable.",
+        "i" = "Inspect the catch series before using N (see the {.field note} column)."
+      ))
+    }
+  }
+
   .build_estimate(
     method = "carle_strub", k = k, T = T,
     N = N0, N_var = .zippin_no_var(N0, p, k),
     p = p, p_var = .zippin_p_var(N0, p, k),
-    converged = TRUE, note = "ok"
+    converged = TRUE, note = note
   )
 }
 

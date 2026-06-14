@@ -14,8 +14,11 @@
 #                                     capturing total (biological + measurement)
 #                                     between-survey variability
 #               Lower interval limits are truncated at zero (density cannot be
-#               negative). Non-converged surveys are excluded from means and
-#               intervals but still counted in n_surveys / prop_converged.
+#               negative). Non-converged surveys are excluded from the
+#               abundance / density means and intervals but still counted in
+#               n_surveys / prop_converged. CPUE, being a model-free observed
+#               quantity, is averaged over every survey regardless of
+#               convergence.
 # Dependencies: dplyr  - grouped summarise via group_modify
 #               stats  - qnorm, qt, sd
 #               cli    - classed errors
@@ -26,8 +29,10 @@
 #'
 #' Aggregates the per-survey output of [analyze_cpue()] (one row per
 #' reach x date x species) to a coarser grouping, by default
-#' `reach_id` x `species`, collapsing repeat survey dates. Means and
-#' confidence intervals are computed over the converged surveys only.
+#' `reach_id` x `species`, collapsing repeat survey dates. Abundance and
+#' density means and their confidence intervals are computed over the
+#' converged surveys only; `cpue_mean`, a model-free observed quantity,
+#' is averaged over all surveys.
 #'
 #' @param x A data frame produced by [analyze_cpue()].
 #' @param by Character vector of grouping columns. Defaults to
@@ -100,7 +105,14 @@ summarize_cpue <- function(x, by = c("reach_id", "species"), level = 0.95) {
         density_per_m2_mean = ci_m2[["mean"]],
         density_per_m2_lwr  = ci_m2[["lwr"]],
         density_per_m2_upr  = ci_m2[["upr"]],
-        cpue_mean           = if (any(conv)) mean(g$cpue[conv]) else NA_real_,
+        # CPUE (catch / effort) is a model-free observed quantity that does
+        # not depend on whether the depletion estimator converged, so it is
+        # averaged over all surveys, not just the converged ones.
+        cpue_mean           = if (any(!is.na(g$cpue))) {
+          mean(g$cpue, na.rm = TRUE)
+        } else {
+          NA_real_
+        },
         stringsAsFactors    = FALSE
       )
     }) |>

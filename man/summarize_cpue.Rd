@@ -24,8 +24,10 @@ columns; \code{n_surveys}, \code{n_converged}, \code{prop_converged};
 \description{
 Aggregates the per-survey output of \code{\link[=analyze_cpue]{analyze_cpue()}} (one row per
 reach x date x species) to a coarser grouping, by default
-\code{reach_id} x \code{species}, collapsing repeat survey dates. Means and
-confidence intervals are computed over the converged surveys only.
+\code{reach_id} x \code{species}, collapsing repeat survey dates. Abundance and
+density means and their confidence intervals are computed over the
+converged surveys only; \code{cpue_mean}, a model-free observed quantity,
+is averaged over all surveys.
 }
 \details{
 Interval method depends on the number of converged surveys in a

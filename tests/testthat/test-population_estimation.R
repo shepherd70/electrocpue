@@ -89,6 +89,33 @@ test_that("increasing catch triggers Zippin model failure -> NA + warning", {
   expect_identical(out$note, "model_failure")
 })
 
+# ---- Edge case: Carle & Strub assumption violation ---------------------------
+
+test_that("non-depleting catch is flagged assumption_violated, not ok", {
+  expect_warning(out <- carle_strub_estimate(c(10, 15, 20)),
+                 regexp = "does not decline")
+  # The search still converges to a number, but it is flagged, not "ok".
+  expect_true(out$converged)
+  expect_false(is.na(out$N))
+  expect_identical(out$note, "assumption_violated")
+})
+
+test_that("a flat (no depletion) two-pass series is flagged", {
+  out <- carle_strub_estimate(c(8, 8), quiet = TRUE)
+  expect_identical(out$note, "assumption_violated")
+})
+
+test_that("quiet = TRUE suppresses the assumption-violation warning", {
+  expect_no_warning(out <- carle_strub_estimate(c(10, 15, 20), quiet = TRUE))
+  expect_identical(out$note, "assumption_violated")
+})
+
+test_that("a genuinely depleting series keeps note = 'ok'", {
+  out <- carle_strub_estimate(c(30, 25, 20), quiet = TRUE)
+  expect_identical(out$note, "ok")
+  expect_true(out$converged)
+})
+
 # ---- Dispatcher: auto --------------------------------------------------------
 
 test_that("auto uses Zippin when its model is valid", {
@@ -105,6 +132,16 @@ test_that("auto falls back to Carle & Strub on Zippin model failure", {
   expect_identical(out$method, "carle_strub")
   expect_true(out$converged)
   expect_false(is.na(out$N))
+  # The fallback series is increasing, so the depletion assumption is
+  # violated; the estimate is returned but flagged rather than "ok".
+  expect_identical(out$note, "assumption_violated")
+})
+
+test_that("auto warns that the depletion assumption is violated for rising catch", {
+  expect_warning(
+    estimate_population(c(10, 15, 20), method = "auto"),
+    regexp = "assumption is violated"
+  )
 })
 
 test_that("auto returns NA for single-pass data without trying Carle & Strub", {

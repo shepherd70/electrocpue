@@ -31,7 +31,7 @@ A one-row data frame with columns: \code{method}, \code{n_passes},
 \code{catch_total}, \code{N} (population estimate), \code{N_se}, \code{p} (per-pass
 capture probability), \code{p_se}, \code{converged} (logical), and \code{note}
 (one of \code{"ok"}, \code{"single_pass"}, \code{"zero_catch"}, \code{"model_failure"},
-\code{"no_convergence"}).
+\code{"no_convergence"}, \code{"assumption_violated"}).
 }
 \description{
 Estimates abundance for a single removal series (one reach x date x
@@ -47,6 +47,15 @@ package, so results are directly comparable to \code{FSA::removal()}. A
 zero total catch is reported as \code{N = 0} (no fish detected -> zero
 density) rather than as a model failure, which is the more useful
 convention for downstream CPUE work.
+
+The removal model assumes catch declines across passes as the local
+population is depleted. When it does not -- the final pass catches as
+many fish as the first, or more -- Carle & Strub may still return a
+numeric estimate, but the depletion assumption is violated and the
+result is not trustworthy. Such a series is flagged with
+\code{note = "assumption_violated"} (and a warning) rather than \code{"ok"}, and
+under \code{method = "auto"} the warning explains that Zippin's stricter
+guard rejected the same series outright.
 }
 \examples{
 estimate_population(c(45, 18, 7))

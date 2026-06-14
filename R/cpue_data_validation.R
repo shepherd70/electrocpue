@@ -17,9 +17,10 @@
 #               4. Check pass numbers contiguous from 1 per reach x date
 #               5. Check effort > 0 for every record
 #               6. Check counts are non-negative integers
-#               7. Check reach_id consistency across tables
-#               8. Check species present for every reach x date
-#               9. Collate failures; abort once via the kernel's
+#               7. Check reach extent (length_m, area_m2) > 0
+#               8. Check reach_id consistency across tables
+#               9. Check species present for every reach x date
+#              10. Collate failures; abort once via the kernel's
 #                  validation_abort() with class cpue_validation_error
 # Dependencies: tritonIngest - shared validation kernel
 #               dplyr     - tidy data manipulation
@@ -120,6 +121,7 @@ validate_cpue_input <- function(catch_data, reach_metadata, strict = TRUE) {
     check_pass_contiguity(catch_data),
     check_effort_positive(catch_data),
     check_counts_nonneg_integer(catch_data),
+    check_reach_extent_positive(reach_metadata),
     check_reach_id_consistency(catch_data, reach_metadata),
     check_species_present(catch_data)
   )
@@ -206,6 +208,52 @@ check_effort_positive <- function(catch_data) {
     "catch_data$effort_seconds has {bad_n} non-positive or NA value(s); ",
     "all records must have effort > 0"
   ))
+}
+
+
+#' Check that reach extent columns are strictly positive
+#'
+#' `length_m` is the denominator of linear density and must be a
+#' positive, non-missing value for every reach; a `0`, negative, or `NA`
+#' length otherwise passes type-checking and silently yields an
+#' `Inf`/`NaN`/negative density downstream. `area_m2` is optional, so an
+#' absent or `NA` value is allowed (it simply yields an `NA` areal
+#' density), but where a value is present it must likewise be positive.
+#'
+#' @param reach_metadata See [validate_cpue_input()].
+#'
+#' @return Character vector of failure messages.
+#'
+#' @keywords internal
+check_reach_extent_positive <- function(reach_metadata) {
+
+  problems <- character(0)
+
+  if ("length_m" %in% names(reach_metadata)) {
+    length_m <- reach_metadata$length_m
+    bad_n    <- sum(length_m <= 0 | is.na(length_m))
+    if (bad_n > 0) {
+      problems <- c(problems, as.character(glue::glue(
+        "reach_metadata$length_m has {bad_n} non-positive or NA value(s); ",
+        "every reach must have length_m > 0"
+      )))
+    }
+  }
+
+  if ("area_m2" %in% names(reach_metadata)) {
+    area_m2 <- reach_metadata$area_m2
+    # NA is allowed (optional, missing -> NA areal density); a present
+    # value, however, must be positive.
+    bad_n   <- sum(area_m2 <= 0, na.rm = TRUE)
+    if (bad_n > 0) {
+      problems <- c(problems, as.character(glue::glue(
+        "reach_metadata$area_m2 has {bad_n} non-positive value(s); ",
+        "area_m2 must be > 0 where present"
+      )))
+    }
+  }
+
+  problems
 }
 
 

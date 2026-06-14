@@ -41,6 +41,15 @@
       i mean_width_m, area_m2, habitat_class, crew, gear
       i Some downstream features will be unavailable.
 
+# validate_cpue_input reports a non-positive reach length
+
+    Code
+      validate_cpue_input(snap_catch(), meta, strict = FALSE)
+    Condition
+      Error:
+      ! Input validation failed with 1 issue(s):
+        x reach_metadata$length_m has 1 non-positive or NA value(s); every reach must have length_m > 0
+
 # single-pass series warns and returns NA
 
     Code
@@ -56,7 +65,8 @@
     Condition
       Warning:
       Zippin model failed; used Carle & Strub estimate instead.
-      i Catch series shows weak depletion; interpret with caution.
+      ! Catch does not decline across passes; the depletion assumption is violated.
+      i Interpret the estimate with great caution (see the note column).
 
 # zippin_estimate warns on insufficient depletion
 
@@ -65,6 +75,16 @@
     Condition
       Warning:
       Zippin model failure: catch series shows insufficient depletion; returning NA.
+
+# carle_strub_estimate flags a non-depleting catch series
+
+    Code
+      invisible(carle_strub_estimate(c(2L, 5L, 9L)))
+    Condition
+      Warning:
+      Carle & Strub: catch does not decline across passes (final >= first pass).
+      ! The removal-depletion assumption is violated; the estimate is unreliable.
+      i Inspect the catch series before using N (see the note column).
 
 # carle_strub_estimate rejects non-positive priors
 

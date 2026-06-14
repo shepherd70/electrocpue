@@ -75,6 +75,15 @@ test_that("validate_cpue_input advises about missing optional columns", {
   )
 })
 
+test_that("validate_cpue_input reports a non-positive reach length", {
+  meta <- snap_meta()
+  meta$length_m[1] <- 0       # zero-length reach -> Inf density downstream
+  expect_snapshot(
+    validate_cpue_input(snap_catch(), meta, strict = FALSE),
+    error = TRUE
+  )
+})
+
 # ---- Estimation: warnings and aborts -----------------------------------------
 
 test_that("single-pass series warns and returns NA", {
@@ -88,6 +97,11 @@ test_that("auto falls back to Carle & Strub when Zippin fails", {
 
 test_that("zippin_estimate warns on insufficient depletion", {
   expect_snapshot(invisible(zippin_estimate(c(2L, 5L, 9L))))
+})
+
+test_that("carle_strub_estimate flags a non-depleting catch series", {
+  # Increasing catch converges numerically but violates the assumption.
+  expect_snapshot(invisible(carle_strub_estimate(c(2L, 5L, 9L))))
 })
 
 test_that("carle_strub_estimate rejects non-positive priors", {

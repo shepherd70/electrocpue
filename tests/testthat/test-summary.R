@@ -129,6 +129,9 @@ test_that("non-converged surveys are excluded from means but counted", {
   expect_identical(bnt$n_converged, 2L)
   expect_equal(bnt$prop_converged, 2 / 3)
   expect_equal(bnt$N_mean, mean(c(74, 80)))  # excludes the NA
+  # CPUE is model-free: it is averaged over ALL surveys, including the
+  # one whose depletion fit failed (its catch/effort is still valid).
+  expect_equal(bnt$cpue_mean, mean(c(70, 60, 80) / 900))
 })
 
 test_that("a group with zero converged surveys yields NA estimates", {
@@ -141,6 +144,9 @@ test_that("a group with zero converged surveys yields NA estimates", {
   expect_identical(res$n_converged, 0L)
   expect_true(is.na(res$density_per_m_mean))
   expect_true(is.na(res$N_mean))
+  # Abundance/density collapse to NA with no converged surveys, but the
+  # observed CPUE does not depend on convergence and is still reported.
+  expect_equal(res$cpue_mean, 30 / 900)
 })
 
 # ---- Custom grouping ---------------------------------------------------------
