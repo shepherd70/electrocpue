@@ -87,4 +87,4 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 - **Pandoc caveat:** not installed in this environment, so the vignette can't render to HTML here and local `R CMD check` runs with `vignettes = FALSE`. Confirm vignette rendering on a pandoc-equipped machine before release.
 - Version bumped to **0.1.0**; maintainer email fixed (`shepherd70@gmail.com`); NEWS.md rewritten; README is now a real quick-start.
 - **Remaining before tagging v0.1.0:** (1) measure coverage once `covr` available; (2) confirm full check incl. vignette on pandoc-equipped CI (Windows + macOS); (3) optional `cran-comments.md` / `CONTRIBUTING.md`; (4) commit + tag `v0.1.0`.
-- `README.Rmd` is still template boilerplate — update before any public announcement.
+- `README.Rmd` has been rewritten as a real quick-start (description, badges, three verified worked examples) and matches the rendered `README.md`.

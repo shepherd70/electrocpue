@@ -6,10 +6,10 @@ Authors@R:
            email = "shepherd70@gmail.com",
            role  = c("aut", "cre"))
 Description: Tools for analyzing multi-pass electrofishing data,
-    including assumption-aware population estimation via Zippin and
-    Carle-Strub depletion methods, effort standardization for raw
-    and amp-based shocking, model-based zero-inflation handling,
-    and regulator-ready report generation.
+    including input validation, assumption-aware population estimation
+    via Zippin and Carle-Strub depletion methods, effort standardization
+    for raw and amp-based shocking, and tidy reach-level density and
+    catch-per-unit-effort summaries with confidence intervals.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
