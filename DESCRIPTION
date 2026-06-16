@@ -31,7 +31,7 @@ Imports:
     rlang,
     tritonIngest (>= 0.4.0)
 Remotes:
-    github::shepherd70/tritonIngest@v0.4.0
+    github::shepherd70/tritonIngest@v0.4.2
 Config/roxygen2/version: 8.0.0
 RoxygenNote: 7.3.2
 Depends:
