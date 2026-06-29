@@ -13,13 +13,17 @@
 #               validation kernel; CPUE domain rules stay local.
 # Logic:        1. Check required columns exist in both tables    (kernel)
 #               2. Check column types match the input contract    (kernel)
+#                  (required columns, and optional columns when present)
 #               3. Check no NA in required identifier columns     (kernel)
 #               4. Check pass numbers contiguous from 1 per reach x date
 #               5. Check effort > 0 for every record
-#               6. Check counts are non-negative integers
-#               7. Check reach_id consistency across tables
-#               8. Check species present for every reach x date
-#               9. Collate failures; abort once via the kernel's
+#               6. Check effort/amperage constant within each pass
+#               7. Check counts are non-negative integers
+#               8. Check reach extent (length_m, area_m2) > 0 for the
+#                  reaches catch_data actually references
+#               9. Check reach_id consistency across tables
+#              10. Check species present for every reach x date
+#              11. Collate failures; abort once via the kernel's
 #                  validation_abort() with class cpue_validation_error
 # Dependencies: tritonIngest - shared validation kernel
 #               dplyr     - tidy data manipulation
@@ -106,11 +110,21 @@ validate_cpue_input <- function(catch_data, reach_metadata, strict = TRUE) {
   # schema checks come from the shared tritonIngest kernel; the remaining
   # checks are CPUE domain rules and stay local.
 
+  # Optional columns need not be present, but when they are their type still
+  # matters: a wrong-typed optional column (e.g. a character area_m2) would
+  # otherwise pass validation and later abort an arithmetic step downstream.
+  # Only the optionals actually present are type-checked.
+  opt_catch      <- .optional_catch_cols[names(.optional_catch_cols) %in% names(catch_data)]
+  opt_reach      <- .optional_reach_cols[names(.optional_reach_cols) %in% names(reach_metadata)]
+  used_reach_ids <- if ("reach_id" %in% names(catch_data)) catch_data$reach_id else NULL
+
   failures <- c(
     tritonIngest::check_required_columns(catch_data,     .required_catch_cols, "catch_data"),
     tritonIngest::check_required_columns(reach_metadata, .required_reach_cols, "reach_metadata"),
     tritonIngest::check_column_types(catch_data,         .required_catch_cols, "catch_data"),
     tritonIngest::check_column_types(reach_metadata,     .required_reach_cols, "reach_metadata"),
+    tritonIngest::check_column_types(catch_data,         opt_catch, "catch_data"),
+    tritonIngest::check_column_types(reach_metadata,     opt_reach, "reach_metadata"),
     tritonIngest::check_no_na(
       catch_data,
       c("reach_id", "date", "pass_number", "species"),
@@ -119,7 +133,9 @@ validate_cpue_input <- function(catch_data, reach_metadata, strict = TRUE) {
     tritonIngest::check_no_na(reach_metadata, "reach_id", "reach_metadata"),
     check_pass_contiguity(catch_data),
     check_effort_positive(catch_data),
+    check_within_pass_consistency(catch_data),
     check_counts_nonneg_integer(catch_data),
+    check_reach_extent_positive(reach_metadata, used_reach_ids),
     check_reach_id_consistency(catch_data, reach_metadata),
     check_species_present(catch_data)
   )
@@ -187,6 +203,82 @@ check_pass_contiguity <- function(catch_data) {
 }
 
 
+#' Check effort and amperage are constant within each pass
+#'
+#' `effort_seconds` -- and `amperage` where present -- describe a pass, not
+#' a species, so they are recorded identically on every species row of a
+#' given `reach_id` x `date` x `pass_number`. When those rows disagree it
+#' is a data-entry error: [analyze_cpue()] would otherwise resolve it
+#' silently with `dplyr::first()`, keeping one value and discarding the
+#' rest, so it is rejected here instead.
+#'
+#' @param catch_data See [validate_cpue_input()].
+#'
+#' @return Character vector of failure messages.
+#'
+#' @keywords internal
+check_within_pass_consistency <- function(catch_data) {
+
+  pass_cols <- c("reach_id", "date", "pass_number")
+  if (!all(pass_cols %in% names(catch_data))) return(character(0))
+
+  # Only present, numeric pass-level columns: a wrong type is already
+  # reported by the kernel, and comparing it here could abort the battery.
+  cols <- intersect(c("effort_seconds", "amperage"), names(catch_data))
+  cols <- cols[purrr::map_lgl(cols, ~ is.numeric(catch_data[[.x]]))]
+  if (length(cols) == 0) return(character(0))
+
+  problems <- purrr::map_chr(cols, function(col) {
+    n_per_group <- catch_data |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(pass_cols))) |>
+      dplyr::summarise(n_val = dplyr::n_distinct(.data[[col]]), .groups = "drop")
+    bad_n <- sum(n_per_group$n_val > 1)
+    if (bad_n == 0) {
+      NA_character_
+    } else {
+      as.character(glue::glue(
+        "catch_data${col} varies within {bad_n} reach x date x pass ",
+        "group(s); it must be constant across the species rows of a pass"
+      ))
+    }
+  })
+
+  problems[!is.na(problems)]
+}
+
+
+#' Flag non-positive (and optionally NA) values in a numeric column
+#'
+#' Shared by the positivity checks ([check_effort_positive()] and
+#' [check_reach_extent_positive()]). A non-numeric column returns no
+#' problem here: its wrong type is already reported by the kernel type
+#' check, and comparing it would otherwise misbehave or abort the battery
+#' mid-run (e.g. `factor <= 0` is all-`NA`, so a downstream
+#' `if (bad_n > 0)` would error with "missing value where TRUE/FALSE
+#' needed" before [validate_cpue_input()] could collate and abort once).
+#'
+#' @param values A vector; only acted on when numeric.
+#' @param prefix Human-readable column reference for the message.
+#' @param requirement Trailing clause stating the rule.
+#' @param na_ok If `TRUE`, `NA` is permitted; if `FALSE` (default), `NA`
+#'   is treated as a failure.
+#'
+#' @return Character vector of failure messages (length 0 or 1).
+#'
+#' @keywords internal
+.positive_column_problem <- function(values, prefix, requirement, na_ok = FALSE) {
+
+  if (!is.numeric(values)) return(character(0))
+
+  bad   <- if (na_ok) (values <= 0) & !is.na(values) else (values <= 0) | is.na(values)
+  bad_n <- sum(bad)
+  if (bad_n == 0) return(character(0))
+
+  kind <- if (na_ok) "non-positive" else "non-positive or NA"
+  as.character(glue::glue("{prefix} has {bad_n} {kind} value(s); {requirement}"))
+}
+
+
 #' Check that effort values are strictly positive
 #'
 #' @param catch_data See [validate_cpue_input()].
@@ -198,14 +290,64 @@ check_effort_positive <- function(catch_data) {
 
   if (!"effort_seconds" %in% names(catch_data)) return(character(0))
 
-  effort <- catch_data$effort_seconds
-  bad_n  <- sum(effort <= 0 | is.na(effort))
-  if (bad_n == 0) return(character(0))
-
-  as.character(glue::glue(
-    "catch_data$effort_seconds has {bad_n} non-positive or NA value(s); ",
+  .positive_column_problem(
+    catch_data$effort_seconds,
+    "catch_data$effort_seconds",
     "all records must have effort > 0"
-  ))
+  )
+}
+
+
+#' Check that reach extent columns are strictly positive
+#'
+#' `length_m` is the denominator of linear density and must be a
+#' positive, non-missing value for every reach; a `0`, negative, or `NA`
+#' length otherwise passes type-checking and silently yields an
+#' `Inf`/`NaN`/negative density downstream. `area_m2` is optional, so an
+#' absent or `NA` value is allowed (it simply yields an `NA` areal
+#' density), but where a value is present it must likewise be positive.
+#'
+#' Only the reaches `catch_data` actually references are checked: a master
+#' reach inventory may legitimately carry placeholder extents for reaches
+#' not sampled this season, and those rows are dropped by the downstream
+#' join in [analyze_cpue()] before any density is computed.
+#'
+#' @param reach_metadata See [validate_cpue_input()].
+#' @param used_reach_ids Optional vector of `reach_id`s referenced by
+#'   `catch_data`. When supplied, only those reaches are checked; when
+#'   `NULL` (the default), every row is checked.
+#'
+#' @return Character vector of failure messages.
+#'
+#' @keywords internal
+check_reach_extent_positive <- function(reach_metadata, used_reach_ids = NULL) {
+
+  if (!is.null(used_reach_ids) && "reach_id" %in% names(reach_metadata)) {
+    reach_metadata <- reach_metadata[
+      reach_metadata$reach_id %in% used_reach_ids, , drop = FALSE
+    ]
+  }
+
+  problems <- character(0)
+
+  if ("length_m" %in% names(reach_metadata)) {
+    problems <- c(problems, .positive_column_problem(
+      reach_metadata$length_m,
+      "reach_metadata$length_m",
+      "every reach must have length_m > 0"
+    ))
+  }
+
+  if ("area_m2" %in% names(reach_metadata)) {
+    problems <- c(problems, .positive_column_problem(
+      reach_metadata$area_m2,
+      "reach_metadata$area_m2",
+      "area_m2 must be > 0 where present",
+      na_ok = TRUE
+    ))
+  }
+
+  problems
 }
 
 

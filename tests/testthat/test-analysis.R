@@ -130,6 +130,26 @@ test_that("amp_seconds basis works and drives cpue when amperage present", {
   expect_identical(unique(res$effort_basis), "amp_seconds")
 })
 
+test_that("amp_seconds basis rejects an NA amperage", {
+  catch <- make_catch()
+  catch$amperage    <- 4
+  catch$amperage[1] <- NA_real_   # one missing current reading
+  expect_error(
+    analyze_cpue(catch, make_meta(), effort_basis = "amp_seconds", validate = FALSE),
+    class = "cpue_analysis_error"
+  )
+})
+
+test_that("amp_seconds basis rejects a non-positive amperage", {
+  catch <- make_catch()
+  catch$amperage    <- 4
+  catch$amperage[2] <- 0          # zero current -> undefined amp-second effort
+  expect_error(
+    analyze_cpue(catch, make_meta(), effort_basis = "amp_seconds", validate = FALSE),
+    class = "cpue_analysis_error"
+  )
+})
+
 # ---- analyze_cpue: method + validation wiring --------------------------------
 
 test_that("method argument is passed through to the estimator", {
@@ -166,4 +186,19 @@ test_that("non-converging series produce a single aggregated warning", {
   bad <- res[res$reach_id == "R1" & res$species == "BNT", ]
   expect_false(bad$converged)
   expect_true(is.na(bad$N))
+})
+
+test_that("assumption-violated series produce an aggregated advisory", {
+  # Increasing catch converges under Carle & Strub but violates the
+  # depletion assumption; analyze_cpue must surface it in aggregate even
+  # though the per-series estimator runs quietly and the row is converged.
+  catch <- make_catch()
+  catch$count[catch$reach_id == "R1" & catch$species == "BNT"] <- c(10L, 15L, 20L)
+  expect_warning(
+    res <- analyze_cpue(catch, make_meta(), method = "carle_strub"),
+    regexp = "violate the depletion assumption"
+  )
+  bad <- res[res$reach_id == "R1" & res$species == "BNT", ]
+  expect_true(bad$converged)
+  expect_identical(bad$note, "assumption_violated")
 })
