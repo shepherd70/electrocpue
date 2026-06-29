@@ -37,7 +37,8 @@ test_that("summarize_cpue returns one row per reach x species with documented co
   expect_identical(nrow(res), 2L)  # R1/BNT and R1/RBT
   expect_named(res, c(
     "reach_id", "species",
-    "n_surveys", "n_converged", "prop_converged", "catch_total", "N_mean",
+    "n_surveys", "n_converged", "prop_converged", "n_assumption_violated",
+    "catch_total", "N_mean",
     "density_per_m_mean", "density_per_m_lwr", "density_per_m_upr",
     "density_per_m2_mean", "density_per_m2_lwr", "density_per_m2_upr",
     "cpue_mean"
@@ -147,6 +148,43 @@ test_that("a group with zero converged surveys yields NA estimates", {
   # Abundance/density collapse to NA with no converged surveys, but the
   # observed CPUE does not depend on convergence and is still reported.
   expect_equal(res$cpue_mean, 30 / 900)
+})
+
+# ---- Assumption violations ---------------------------------------------------
+
+test_that("assumption_violated surveys are excluded from estimates but surfaced", {
+  x <- make_analysis()
+  # The middle BNT survey converged to a number but violates the depletion
+  # assumption; it must not pollute the abundance / density means.
+  x$note[2] <- "assumption_violated"
+  res <- summarize_cpue(x)
+  bnt <- res[res$species == "BNT", ]
+  expect_identical(bnt$n_converged, 3L)            # it did converge
+  expect_identical(bnt$n_assumption_violated, 1L)  # but is flagged
+  expect_equal(bnt$N_mean, mean(c(74, 80)))        # excludes the flagged N = 62
+  expect_equal(bnt$density_per_m_mean, mean(c(74, 80) / 100))
+  # CPUE is model-free, so every survey still contributes.
+  expect_equal(bnt$cpue_mean, mean(c(70, 60, 80) / 900))
+})
+
+test_that("a group of only assumption_violated surveys yields NA estimates", {
+  x <- make_analysis()
+  x <- x[x$species == "BNT", ]
+  x$note <- "assumption_violated"
+  res <- summarize_cpue(x)
+  expect_identical(res$n_converged, 3L)
+  expect_identical(res$n_assumption_violated, 3L)
+  expect_true(is.na(res$N_mean))
+  expect_true(is.na(res$density_per_m_mean))
+  expect_equal(res$cpue_mean, mean(c(70, 60, 80) / 900))  # still observed
+})
+
+test_that("an infinite cpue (zero-effort survey) is dropped from cpue_mean", {
+  x <- make_analysis()
+  x$cpue[2] <- Inf            # e.g. effort_basis = "amp_seconds", zero amperage
+  res <- summarize_cpue(x)
+  bnt <- res[res$species == "BNT", ]
+  expect_equal(bnt$cpue_mean, mean(c(70, 80) / 900))  # the Inf survey is dropped
 })
 
 # ---- Custom grouping ---------------------------------------------------------

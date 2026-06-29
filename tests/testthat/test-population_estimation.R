@@ -116,6 +116,39 @@ test_that("a genuinely depleting series keeps note = 'ok'", {
   expect_true(out$converged)
 })
 
+test_that("an interior catch spike is flagged, not just the endpoints", {
+  # Last pass (9) is below the first (10), so an endpoint-only test would
+  # pass it; but pass 2 spikes to 30, and the first pass should catch the
+  # most under depletion, so the all-passes check flags it.
+  out <- carle_strub_estimate(c(10, 30, 9), quiet = TRUE)
+  expect_true(out$converged)
+  expect_identical(out$note, "assumption_violated")
+})
+
+test_that("a first-pass-dominant series with mild interior noise stays ok", {
+  # Pass 3 (20) slightly exceeds pass 2 (18), but the first pass is the
+  # maximum and the series declines overall: genuine depletion, not flagged.
+  out <- carle_strub_estimate(c(45, 18, 20, 7), quiet = TRUE)
+  expect_identical(out$note, "ok")
+})
+
+test_that("zippin flags a non-depleting series it still converges on", {
+  # Zippin converges on a flat series (N is numeric), but it does not
+  # deplete, so it must carry the same flag Carle & Strub would apply.
+  out <- zippin_estimate(c(8, 8), quiet = TRUE)
+  expect_true(out$converged)
+  expect_false(is.na(out$N))
+  expect_identical(out$note, "assumption_violated")
+})
+
+test_that("an extreme non-depleting series fails to converge rather than flagging", {
+  # The integer search runs away on a violently increasing series and is
+  # reported as a non-convergence (NA) -- the documented edge of the flag.
+  out <- carle_strub_estimate(c(5, 9999), quiet = TRUE)
+  expect_identical(out$note, "no_convergence")
+  expect_true(is.na(out$N))
+})
+
 # ---- Dispatcher: auto --------------------------------------------------------
 
 test_that("auto uses Zippin when its model is valid", {
@@ -142,6 +175,20 @@ test_that("auto warns that the depletion assumption is violated for rising catch
     estimate_population(c(10, 15, 20), method = "auto"),
     regexp = "assumption is violated"
   )
+})
+
+test_that("auto flags a non-depleting series even when Zippin converges", {
+  # Regression: the flat series c(8, 8) makes Zippin converge, so auto
+  # returned it before the depletion check ever ran (note = "ok"). The flag
+  # must survive the Zippin-wins path, with a warning.
+  expect_warning(
+    out <- estimate_population(c(8, 8), method = "auto"),
+    regexp = "assumption is violated"
+  )
+  expect_identical(out$method, "zippin")
+  expect_true(out$converged)
+  expect_false(is.na(out$N))
+  expect_identical(out$note, "assumption_violated")
 })
 
 test_that("auto returns NA for single-pass data without trying Carle & Strub", {

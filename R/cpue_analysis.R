@@ -219,12 +219,24 @@ analyze_cpue <- function(catch_data, reach_metadata,
   res$density_per_m  <- res$N / res$length_m
   res$density_per_m2 <- res$N / res$area_m2
 
-  # ---- 5. Single aggregated convergence advisory ----
+  # ---- 5. Aggregated advisories ----
+  # A non-converged series yielded no estimate; an assumption_violated one
+  # converged to a number that is not trustworthy. The per-series estimator
+  # ran quietly (quiet = TRUE), so both are surfaced here once, in aggregate,
+  # rather than as per-series warnings.
   n_fail <- sum(!res$converged)
   if (n_fail > 0) {
     cli::cli_warn(c(
       "{n_fail} of {nrow(res)} series did not yield a usable estimate.",
       "i" = "Inspect the {.field converged} and {.field note} columns."
+    ))
+  }
+  n_violated <- sum(res$note == "assumption_violated")
+  if (n_violated > 0) {
+    cli::cli_warn(c(
+      "{n_violated} of {nrow(res)} series violate the depletion assumption (catch does not decline across passes).",
+      "!" = "Their abundance and density estimates are unreliable.",
+      "i" = "Inspect the {.field note} column; these are excluded from {.fn summarize_cpue} means."
     ))
   }
 

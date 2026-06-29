@@ -167,3 +167,18 @@ test_that("non-converging series produce a single aggregated warning", {
   expect_false(bad$converged)
   expect_true(is.na(bad$N))
 })
+
+test_that("assumption-violated series produce an aggregated advisory", {
+  # Increasing catch converges under Carle & Strub but violates the
+  # depletion assumption; analyze_cpue must surface it in aggregate even
+  # though the per-series estimator runs quietly and the row is converged.
+  catch <- make_catch()
+  catch$count[catch$reach_id == "R1" & catch$species == "BNT"] <- c(10L, 15L, 20L)
+  expect_warning(
+    res <- analyze_cpue(catch, make_meta(), method = "carle_strub"),
+    regexp = "violate the depletion assumption"
+  )
+  bad <- res[res$reach_id == "R1" & res$species == "BNT", ]
+  expect_true(bad$converged)
+  expect_identical(bad$note, "assumption_violated")
+})

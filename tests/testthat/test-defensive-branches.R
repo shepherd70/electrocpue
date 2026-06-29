@@ -83,7 +83,7 @@ test_that("advise_optional_columns warns and returns invisibly", {
 test_that("summarize_cpue yields NA interval when the single survey SE is NA", {
   x <- data.frame(
     reach_id = "R1", species = "BNT",
-    converged = TRUE, catch_total = 30, N = 32, N_se = NA_real_,
+    converged = TRUE, note = "ok", catch_total = 30, N = 32, N_se = NA_real_,
     length_m = 100, area_m2 = 800, cpue = 0.03,
     density_per_m = 0.32, density_per_m2 = 0.04,
     stringsAsFactors = FALSE

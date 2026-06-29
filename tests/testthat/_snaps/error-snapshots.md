@@ -82,7 +82,7 @@
       invisible(carle_strub_estimate(c(2L, 5L, 9L)))
     Condition
       Warning:
-      Carle & Strub: catch does not decline across passes (final >= first pass).
+      Carle & Strub: catch does not decline across passes (a later pass catches as many as the first, or more).
       ! The removal-depletion assumption is violated; the estimate is unreliable.
       i Inspect the catch series before using N (see the note column).
 
@@ -150,7 +150,7 @@
       summarize_cpue(data.frame(reach_id = "R1"))
     Condition
       Error in `summarize_cpue()`:
-      ! `x` is missing column(s): species, converged, catch_total, N, N_se, length_m, area_m2, cpue, density_per_m, and density_per_m2.
+      ! `x` is missing column(s): species, converged, note, catch_total, N, N_se, length_m, area_m2, cpue, density_per_m, and density_per_m2.
       i Did it come from `analyze_cpue()`?
 
 # summarize_cpue rejects an out-of-range confidence level

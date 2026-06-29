@@ -28,7 +28,7 @@ and the recommended default for routine use.
 }
 \details{
 Unlike Zippin, Carle & Strub does not reject a non-depleting series
-outright: when the catch does not decline across passes (the final
+outright: when the catch does not decline across passes (some later
 pass catches as many fish as the first, or more) it can still converge
 to a numeric estimate. That estimate is returned, but flagged with
 \code{note = "assumption_violated"} and a warning rather than \code{note = "ok"},

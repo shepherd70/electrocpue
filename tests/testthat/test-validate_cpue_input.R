@@ -131,6 +131,34 @@ test_that("integer count column satisfies numeric-typed reach metadata length_m"
   expect_no_error(validate_cpue_input(make_catch(), meta, strict = FALSE))
 })
 
+test_that("a factor length_m is reported as a type error, not a crash", {
+  # length_m as a factor must surface the classed type-mismatch error, not
+  # abort the battery mid-run with a raw 'missing value where TRUE/FALSE
+  # needed' from comparing a factor with <=.
+  meta <- make_meta()
+  meta$length_m <- factor(meta$length_m)
+  expect_error(
+    validate_cpue_input(make_catch(), meta, strict = FALSE),
+    class = "cpue_validation_error"
+  )
+  err <- catch_cpue_error(make_catch(), meta, strict = FALSE)
+  expect_true(any(grepl("length_m", err$failures)))
+})
+
+test_that("a wrong-typed optional area_m2 is reported (no silent downstream crash)", {
+  # area_m2 is optional, but when present its type is checked, so a
+  # character area_m2 fails validation cleanly instead of passing and then
+  # crashing analyze_cpue at N / area_m2.
+  meta <- make_meta()
+  meta$area_m2 <- c("800", "1200")   # character, not numeric
+  expect_error(
+    validate_cpue_input(make_catch(), meta, strict = FALSE),
+    class = "cpue_validation_error"
+  )
+  err <- catch_cpue_error(make_catch(), meta, strict = FALSE)
+  expect_true(any(grepl("area_m2", err$failures)))
+})
+
 # ---- NA checks ---------------------------------------------------------------
 
 test_that("NA in catch$reach_id is reported", {
@@ -257,6 +285,26 @@ test_that("reach_id in metadata but not in catch is not an error", {
   meta <- rbind(make_meta(), data.frame(reach_id = "R3", length_m = 200,
                                         stringsAsFactors = FALSE))
   expect_no_error(validate_cpue_input(make_catch(), meta, strict = FALSE))
+})
+
+test_that("a master inventory with placeholder extents for unsampled reaches is accepted", {
+  # R3 is in the inventory but not sampled this season; its placeholder
+  # length_m (NA) and area_m2 (0) must not fail validation, because the
+  # reach is dropped downstream before any density is computed.
+  meta <- rbind(
+    make_meta(),
+    data.frame(reach_id = "R3", length_m = NA_real_, stringsAsFactors = FALSE)
+  )
+  meta$area_m2 <- c(800, 1200, 0)   # R3's areal placeholder is a non-positive 0
+  expect_no_error(validate_cpue_input(make_catch(), meta, strict = FALSE))
+})
+
+test_that("a non-positive length_m IS reported for a reach that was sampled", {
+  # The scoping must not mask a bad extent on a reach catch_data references.
+  meta <- make_meta()
+  meta$length_m[meta$reach_id == "R1"] <- 0   # R1 is sampled in make_catch()
+  err <- catch_cpue_error(make_catch(), meta, strict = FALSE)
+  expect_true(any(grepl("length_m", err$failures)))
 })
 
 test_that("preview truncates beyond 5 orphan IDs and reports total", {

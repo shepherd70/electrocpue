@@ -49,13 +49,16 @@ density) rather than as a model failure, which is the more useful
 convention for downstream CPUE work.
 
 The removal model assumes catch declines across passes as the local
-population is depleted. When it does not -- the final pass catches as
-many fish as the first, or more -- Carle & Strub may still return a
-numeric estimate, but the depletion assumption is violated and the
-result is not trustworthy. Such a series is flagged with
-\code{note = "assumption_violated"} (and a warning) rather than \code{"ok"}, and
-under \code{method = "auto"} the warning explains that Zippin's stricter
-guard rejected the same series outright.
+population is depleted, so the first pass should catch the most fish.
+When some later pass catches as many as the first, or more, the
+depletion assumption is violated: an estimator may still return a
+numeric estimate, but it is not trustworthy. Such a series is flagged
+with \code{note = "assumption_violated"} (and a warning) rather than \code{"ok"}.
+The check spans every pass and applies to all methods, so \code{"auto"}
+flags a non-depleting series whether Zippin converged on it or the
+Carle & Strub fallback was used. (A non-depleting series so extreme that
+the search does not converge is instead returned as
+\code{note = "no_convergence"}, \code{N = NA}.)
 }
 \examples{
 estimate_population(c(45, 18, 7))

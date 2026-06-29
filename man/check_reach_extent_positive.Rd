@@ -4,10 +4,14 @@
 \alias{check_reach_extent_positive}
 \title{Check that reach extent columns are strictly positive}
 \usage{
-check_reach_extent_positive(reach_metadata)
+check_reach_extent_positive(reach_metadata, used_reach_ids = NULL)
 }
 \arguments{
 \item{reach_metadata}{See \code{\link[=validate_cpue_input]{validate_cpue_input()}}.}
+
+\item{used_reach_ids}{Optional vector of \code{reach_id}s referenced by
+\code{catch_data}. When supplied, only those reaches are checked; when
+\code{NULL} (the default), every row is checked.}
 }
 \value{
 Character vector of failure messages.
@@ -19,5 +23,10 @@ length otherwise passes type-checking and silently yields an
 \code{Inf}/\code{NaN}/negative density downstream. \code{area_m2} is optional, so an
 absent or \code{NA} value is allowed (it simply yields an \code{NA} areal
 density), but where a value is present it must likewise be positive.
+
+Only the reaches \code{catch_data} actually references are checked: a master
+reach inventory may legitimately carry placeholder extents for reaches
+not sampled this season, and those rows are dropped by the downstream
+join in \code{\link[=analyze_cpue]{analyze_cpue()}} before any density is computed.
 }
 \keyword{internal}

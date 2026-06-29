@@ -17,25 +17,28 @@ summarize_cpue(x, by = c("reach_id", "species"), level = 0.95)
 }
 \value{
 A data frame with one row per group and columns: the grouping
-columns; \code{n_surveys}, \code{n_converged}, \code{prop_converged};
-\code{catch_total}; \code{N_mean}; mean and lower/upper interval limits for
-\code{density_per_m} and \code{density_per_m2}; and \code{cpue_mean}.
+columns; \code{n_surveys}, \code{n_converged}, \code{prop_converged},
+\code{n_assumption_violated}; \code{catch_total}; \code{N_mean}; mean and
+lower/upper interval limits for \code{density_per_m} and \code{density_per_m2};
+and \code{cpue_mean}.
 }
 \description{
 Aggregates the per-survey output of \code{\link[=analyze_cpue]{analyze_cpue()}} (one row per
 reach x date x species) to a coarser grouping, by default
 \code{reach_id} x \code{species}, collapsing repeat survey dates. Abundance and
 density means and their confidence intervals are computed over the
-converged surveys only; \code{cpue_mean}, a model-free observed quantity,
-is averaged over all surveys.
+usable surveys only -- those that converged and whose depletion
+assumption held; \code{cpue_mean}, a model-free observed quantity, is
+averaged over all surveys with a finite catch rate.
 }
 \details{
-Interval method depends on the number of converged surveys in a
-group. With a single survey, only the depletion estimate's standard
-error is available, so a Wald (normal) interval is used. With two or
-more surveys, a Student-t interval on the survey-level densities is
-used, which reflects total between-survey variability (biological plus
-measurement). Lower limits are truncated at zero.
+Interval method depends on the number of usable surveys in a group
+(converged and not flagged \code{assumption_violated}). With a single
+survey, only the depletion estimate's standard error is available, so a
+Wald (normal) interval is used. With two or more surveys, a Student-t
+interval on the survey-level densities is used, which reflects total
+between-survey variability (biological plus measurement). Lower limits
+are truncated at zero.
 }
 \examples{
 catch <- data.frame(

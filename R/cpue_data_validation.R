@@ -13,11 +13,13 @@
 #               validation kernel; CPUE domain rules stay local.
 # Logic:        1. Check required columns exist in both tables    (kernel)
 #               2. Check column types match the input contract    (kernel)
+#                  (required columns, and optional columns when present)
 #               3. Check no NA in required identifier columns     (kernel)
 #               4. Check pass numbers contiguous from 1 per reach x date
 #               5. Check effort > 0 for every record
 #               6. Check counts are non-negative integers
-#               7. Check reach extent (length_m, area_m2) > 0
+#               7. Check reach extent (length_m, area_m2) > 0 for the
+#                  reaches catch_data actually references
 #               8. Check reach_id consistency across tables
 #               9. Check species present for every reach x date
 #              10. Collate failures; abort once via the kernel's
@@ -107,11 +109,21 @@ validate_cpue_input <- function(catch_data, reach_metadata, strict = TRUE) {
   # schema checks come from the shared tritonIngest kernel; the remaining
   # checks are CPUE domain rules and stay local.
 
+  # Optional columns need not be present, but when they are their type still
+  # matters: a wrong-typed optional column (e.g. a character area_m2) would
+  # otherwise pass validation and later abort an arithmetic step downstream.
+  # Only the optionals actually present are type-checked.
+  opt_catch      <- .optional_catch_cols[names(.optional_catch_cols) %in% names(catch_data)]
+  opt_reach      <- .optional_reach_cols[names(.optional_reach_cols) %in% names(reach_metadata)]
+  used_reach_ids <- if ("reach_id" %in% names(catch_data)) catch_data$reach_id else NULL
+
   failures <- c(
     tritonIngest::check_required_columns(catch_data,     .required_catch_cols, "catch_data"),
     tritonIngest::check_required_columns(reach_metadata, .required_reach_cols, "reach_metadata"),
     tritonIngest::check_column_types(catch_data,         .required_catch_cols, "catch_data"),
     tritonIngest::check_column_types(reach_metadata,     .required_reach_cols, "reach_metadata"),
+    tritonIngest::check_column_types(catch_data,         opt_catch, "catch_data"),
+    tritonIngest::check_column_types(reach_metadata,     opt_reach, "reach_metadata"),
     tritonIngest::check_no_na(
       catch_data,
       c("reach_id", "date", "pass_number", "species"),
@@ -121,7 +133,7 @@ validate_cpue_input <- function(catch_data, reach_metadata, strict = TRUE) {
     check_pass_contiguity(catch_data),
     check_effort_positive(catch_data),
     check_counts_nonneg_integer(catch_data),
-    check_reach_extent_positive(reach_metadata),
+    check_reach_extent_positive(reach_metadata, used_reach_ids),
     check_reach_id_consistency(catch_data, reach_metadata),
     check_species_present(catch_data)
   )
@@ -189,6 +201,38 @@ check_pass_contiguity <- function(catch_data) {
 }
 
 
+#' Flag non-positive (and optionally NA) values in a numeric column
+#'
+#' Shared by the positivity checks ([check_effort_positive()] and
+#' [check_reach_extent_positive()]). A non-numeric column returns no
+#' problem here: its wrong type is already reported by the kernel type
+#' check, and comparing it would otherwise misbehave or abort the battery
+#' mid-run (e.g. `factor <= 0` is all-`NA`, so a downstream
+#' `if (bad_n > 0)` would error with "missing value where TRUE/FALSE
+#' needed" before [validate_cpue_input()] could collate and abort once).
+#'
+#' @param values A vector; only acted on when numeric.
+#' @param prefix Human-readable column reference for the message.
+#' @param requirement Trailing clause stating the rule.
+#' @param na_ok If `TRUE`, `NA` is permitted; if `FALSE` (default), `NA`
+#'   is treated as a failure.
+#'
+#' @return Character vector of failure messages (length 0 or 1).
+#'
+#' @keywords internal
+.positive_column_problem <- function(values, prefix, requirement, na_ok = FALSE) {
+
+  if (!is.numeric(values)) return(character(0))
+
+  bad   <- if (na_ok) (values <= 0) & !is.na(values) else (values <= 0) | is.na(values)
+  bad_n <- sum(bad)
+  if (bad_n == 0) return(character(0))
+
+  kind <- if (na_ok) "non-positive" else "non-positive or NA"
+  as.character(glue::glue("{prefix} has {bad_n} {kind} value(s); {requirement}"))
+}
+
+
 #' Check that effort values are strictly positive
 #'
 #' @param catch_data See [validate_cpue_input()].
@@ -200,14 +244,11 @@ check_effort_positive <- function(catch_data) {
 
   if (!"effort_seconds" %in% names(catch_data)) return(character(0))
 
-  effort <- catch_data$effort_seconds
-  bad_n  <- sum(effort <= 0 | is.na(effort))
-  if (bad_n == 0) return(character(0))
-
-  as.character(glue::glue(
-    "catch_data$effort_seconds has {bad_n} non-positive or NA value(s); ",
+  .positive_column_problem(
+    catch_data$effort_seconds,
+    "catch_data$effort_seconds",
     "all records must have effort > 0"
-  ))
+  )
 }
 
 
@@ -220,37 +261,44 @@ check_effort_positive <- function(catch_data) {
 #' absent or `NA` value is allowed (it simply yields an `NA` areal
 #' density), but where a value is present it must likewise be positive.
 #'
+#' Only the reaches `catch_data` actually references are checked: a master
+#' reach inventory may legitimately carry placeholder extents for reaches
+#' not sampled this season, and those rows are dropped by the downstream
+#' join in [analyze_cpue()] before any density is computed.
+#'
 #' @param reach_metadata See [validate_cpue_input()].
+#' @param used_reach_ids Optional vector of `reach_id`s referenced by
+#'   `catch_data`. When supplied, only those reaches are checked; when
+#'   `NULL` (the default), every row is checked.
 #'
 #' @return Character vector of failure messages.
 #'
 #' @keywords internal
-check_reach_extent_positive <- function(reach_metadata) {
+check_reach_extent_positive <- function(reach_metadata, used_reach_ids = NULL) {
+
+  if (!is.null(used_reach_ids) && "reach_id" %in% names(reach_metadata)) {
+    reach_metadata <- reach_metadata[
+      reach_metadata$reach_id %in% used_reach_ids, , drop = FALSE
+    ]
+  }
 
   problems <- character(0)
 
   if ("length_m" %in% names(reach_metadata)) {
-    length_m <- reach_metadata$length_m
-    bad_n    <- sum(length_m <= 0 | is.na(length_m))
-    if (bad_n > 0) {
-      problems <- c(problems, as.character(glue::glue(
-        "reach_metadata$length_m has {bad_n} non-positive or NA value(s); ",
-        "every reach must have length_m > 0"
-      )))
-    }
+    problems <- c(problems, .positive_column_problem(
+      reach_metadata$length_m,
+      "reach_metadata$length_m",
+      "every reach must have length_m > 0"
+    ))
   }
 
   if ("area_m2" %in% names(reach_metadata)) {
-    area_m2 <- reach_metadata$area_m2
-    # NA is allowed (optional, missing -> NA areal density); a present
-    # value, however, must be positive.
-    bad_n   <- sum(area_m2 <= 0, na.rm = TRUE)
-    if (bad_n > 0) {
-      problems <- c(problems, as.character(glue::glue(
-        "reach_metadata$area_m2 has {bad_n} non-positive value(s); ",
-        "area_m2 must be > 0 where present"
-      )))
-    }
+    problems <- c(problems, .positive_column_problem(
+      reach_metadata$area_m2,
+      "reach_metadata$area_m2",
+      "area_m2 must be > 0 where present",
+      na_ok = TRUE
+    ))
   }
 
   problems

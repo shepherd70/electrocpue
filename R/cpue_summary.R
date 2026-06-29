@@ -8,17 +8,18 @@
 #               grain (by default reach x species, collapsing repeat survey
 #               dates) and attaches confidence intervals to the density
 #               estimates.
-# Logic:        For each summary group, over the converged surveys:
+# Logic:        For each summary group, over the usable surveys (converged
+#               and not flagged assumption_violated):
 #                 - single survey  -> Wald CI from the depletion standard error
 #                 - >= 2 surveys   -> t-interval on the survey-level densities,
 #                                     capturing total (biological + measurement)
 #                                     between-survey variability
 #               Lower interval limits are truncated at zero (density cannot be
-#               negative). Non-converged surveys are excluded from the
-#               abundance / density means and intervals but still counted in
-#               n_surveys / prop_converged. CPUE, being a model-free observed
-#               quantity, is averaged over every survey regardless of
-#               convergence.
+#               negative). Surveys that did not converge, or whose depletion
+#               assumption was violated, are excluded from the abundance /
+#               density means and intervals; the violated ones are counted in
+#               n_assumption_violated. CPUE, a model-free observed quantity, is
+#               averaged over every survey with a finite catch rate.
 # Dependencies: dplyr  - grouped summarise via group_modify
 #               stats  - qnorm, qt, sd
 #               cli    - classed errors
@@ -31,8 +32,9 @@
 #' reach x date x species) to a coarser grouping, by default
 #' `reach_id` x `species`, collapsing repeat survey dates. Abundance and
 #' density means and their confidence intervals are computed over the
-#' converged surveys only; `cpue_mean`, a model-free observed quantity,
-#' is averaged over all surveys.
+#' usable surveys only -- those that converged and whose depletion
+#' assumption held; `cpue_mean`, a model-free observed quantity, is
+#' averaged over all surveys with a finite catch rate.
 #'
 #' @param x A data frame produced by [analyze_cpue()].
 #' @param by Character vector of grouping columns. Defaults to
@@ -41,17 +43,19 @@
 #'   `0.95`.
 #'
 #' @return A data frame with one row per group and columns: the grouping
-#'   columns; `n_surveys`, `n_converged`, `prop_converged`;
-#'   `catch_total`; `N_mean`; mean and lower/upper interval limits for
-#'   `density_per_m` and `density_per_m2`; and `cpue_mean`.
+#'   columns; `n_surveys`, `n_converged`, `prop_converged`,
+#'   `n_assumption_violated`; `catch_total`; `N_mean`; mean and
+#'   lower/upper interval limits for `density_per_m` and `density_per_m2`;
+#'   and `cpue_mean`.
 #'
 #' @details
-#' Interval method depends on the number of converged surveys in a
-#' group. With a single survey, only the depletion estimate's standard
-#' error is available, so a Wald (normal) interval is used. With two or
-#' more surveys, a Student-t interval on the survey-level densities is
-#' used, which reflects total between-survey variability (biological plus
-#' measurement). Lower limits are truncated at zero.
+#' Interval method depends on the number of usable surveys in a group
+#' (converged and not flagged `assumption_violated`). With a single
+#' survey, only the depletion estimate's standard error is available, so a
+#' Wald (normal) interval is used. With two or more surveys, a Student-t
+#' interval on the survey-level densities is used, which reflects total
+#' between-survey variability (biological plus measurement). Lower limits
+#' are truncated at zero.
 #'
 #' @export
 #' @family analysis
@@ -70,7 +74,7 @@ summarize_cpue <- function(x, by = c("reach_id", "species"), level = 0.95) {
     cli::cli_abort("{.arg x} must be a data frame from {.fn analyze_cpue}.",
                    class = "cpue_analysis_error")
   }
-  needed <- c("converged", "catch_total", "N", "N_se", "length_m",
+  needed <- c("converged", "note", "catch_total", "N", "N_se", "length_m",
               "area_m2", "cpue", "density_per_m", "density_per_m2")
   missing_cols <- setdiff(c(by, needed), names(x))
   if (length(missing_cols) > 0) {
@@ -88,32 +92,38 @@ summarize_cpue <- function(x, by = c("reach_id", "species"), level = 0.95) {
   x |>
     dplyr::group_by(dplyr::across(dplyr::all_of(by))) |>
     dplyr::group_modify(function(g, key) {
-      conv  <- g$converged %in% TRUE
-      ci_m  <- .summary_ci(g$density_per_m[conv],
-                           (g$N_se / g$length_m)[conv], level)
-      ci_m2 <- .summary_ci(g$density_per_m2[conv],
-                           (g$N_se / g$area_m2)[conv], level)
+      conv <- g$converged %in% TRUE
+      # A converged fit flagged "assumption_violated" produced a number but
+      # is not trustworthy (catch did not decline across passes), so it is
+      # excluded from the abundance / density means and intervals -- which
+      # are built over the usable (converged AND not flagged) surveys -- and
+      # surfaced separately via n_assumption_violated.
+      violated <- conv & (g$note %in% "assumption_violated")
+      usable   <- conv & !violated
+      ci_m  <- .summary_ci(g$density_per_m[usable],
+                           (g$N_se / g$length_m)[usable], level)
+      ci_m2 <- .summary_ci(g$density_per_m2[usable],
+                           (g$N_se / g$area_m2)[usable], level)
+      # CPUE (catch / effort) is a model-free observed quantity that does
+      # not depend on the depletion fit, so it is averaged over every
+      # survey. is.finite() drops NA/NaN and also Inf (a zero-effort survey
+      # under effort_basis = "amp_seconds" yields an infinite cpue).
+      cpue_finite <- g$cpue[is.finite(g$cpue)]
       data.frame(
-        n_surveys           = nrow(g),
-        n_converged         = sum(conv),
-        prop_converged      = sum(conv) / nrow(g),
-        catch_total         = sum(g$catch_total),
-        N_mean              = if (any(conv)) mean(g$N[conv]) else NA_real_,
-        density_per_m_mean  = ci_m[["mean"]],
-        density_per_m_lwr   = ci_m[["lwr"]],
-        density_per_m_upr   = ci_m[["upr"]],
-        density_per_m2_mean = ci_m2[["mean"]],
-        density_per_m2_lwr  = ci_m2[["lwr"]],
-        density_per_m2_upr  = ci_m2[["upr"]],
-        # CPUE (catch / effort) is a model-free observed quantity that does
-        # not depend on whether the depletion estimator converged, so it is
-        # averaged over all surveys, not just the converged ones.
-        cpue_mean           = if (any(!is.na(g$cpue))) {
-          mean(g$cpue, na.rm = TRUE)
-        } else {
-          NA_real_
-        },
-        stringsAsFactors    = FALSE
+        n_surveys             = nrow(g),
+        n_converged           = sum(conv),
+        prop_converged        = sum(conv) / nrow(g),
+        n_assumption_violated = sum(violated),
+        catch_total           = sum(g$catch_total),
+        N_mean                = if (any(usable)) mean(g$N[usable]) else NA_real_,
+        density_per_m_mean    = ci_m[["mean"]],
+        density_per_m_lwr     = ci_m[["lwr"]],
+        density_per_m_upr     = ci_m[["upr"]],
+        density_per_m2_mean   = ci_m2[["mean"]],
+        density_per_m2_lwr    = ci_m2[["lwr"]],
+        density_per_m2_upr    = ci_m2[["upr"]],
+        cpue_mean             = if (length(cpue_finite)) mean(cpue_finite) else NA_real_,
+        stringsAsFactors      = FALSE
       )
     }) |>
     dplyr::ungroup() |>

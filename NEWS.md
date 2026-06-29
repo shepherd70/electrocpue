@@ -1,26 +1,42 @@
 # electrocpue (development version)
 
 Fixes for the four major findings of the 2026-06 audit
-(`docs/electrocpue-audit-2026-06.md`):
+(`docs/electrocpue-audit-2026-06.md`), with follow-up corrections from a
+review of those fixes:
 
 * **Declared R dependency now matches the code.** The package uses the
   native pipe `|>`, so `DESCRIPTION` now requires `R (>= 4.1.0)` instead
   of the inherited `R (>= 2.10)`, which would have let the package
   install on R 4.0.x and then fail to parse.
-* **`validate_cpue_input()` now checks reach extent.** A new
+* **`validate_cpue_input()` now checks reach extent.**
   `check_reach_extent_positive()` rejects a `length_m` that is `0`,
   negative, or `NA` (and an `area_m2 <= 0` where the optional column is
   present), closing a gap that let those values pass validation and
-  silently produce `Inf`/`NaN`/negative density downstream.
-* **Carle & Strub flags non-depleting series.** When the catch does not
-  decline across passes (final pass >= first), the estimator now returns
-  `note = "assumption_violated"` with a warning instead of reporting
-  `note = "ok"`; the `"auto"` dispatcher's fallback warning is likewise
-  explicit that the depletion assumption is violated.
+  silently produce `Inf`/`NaN`/negative density downstream. The check is
+  restricted to the reaches `catch_data` references, so a master reach
+  inventory carrying placeholder extents for *unsampled* reaches is still
+  accepted. Optional columns are now type-checked when present, and the
+  positivity checks no longer abort the battery on a non-numeric column.
+* **Non-depleting series are flagged for every method.** When the catch
+  does not decline across passes -- any pass catching as many fish as the
+  first, or more -- the estimate is returned with
+  `note = "assumption_violated"` and a warning instead of `note = "ok"`.
+  The check spans every pass (not just the first and last) and applies to
+  `zippin`, `carle_strub`, and `auto` alike, so a non-depleting series is
+  flagged whether or not Zippin happened to converge on it. (A series so
+  extreme that the search itself does not converge is returned as
+  `note = "no_convergence"`.)
+* **The flag is honoured downstream.** `analyze_cpue()` now emits an
+  aggregate warning when any series violates the assumption, and
+  `summarize_cpue()` excludes `assumption_violated` surveys from the
+  abundance and density means and intervals -- reporting them in a new
+  `n_assumption_violated` column -- rather than blending their
+  untrustworthy estimates into the group summary.
 * **`summarize_cpue()` averages CPUE over all surveys.** Because observed
-  CPUE (catch / effort) does not depend on whether the depletion
-  estimator converged, `cpue_mean` is no longer restricted to converged
-  surveys. Abundance and density means remain converged-only.
+  CPUE (catch / effort) does not depend on the depletion fit, `cpue_mean`
+  is averaged over every survey with a finite catch rate (an infinite
+  rate from a zero-effort survey is dropped). Abundance and density means
+  remain restricted to usable surveys.
 
 # electrocpue 0.1.0
 
