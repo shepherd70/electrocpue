@@ -307,6 +307,28 @@ test_that("a non-positive length_m IS reported for a reach that was sampled", {
   expect_true(any(grepl("length_m", err$failures)))
 })
 
+test_that("within-pass effort_seconds disagreement is reported", {
+  # effort is a property of a pass, so two species rows of R1 pass 1 with
+  # different effort_seconds is a data-entry error that analyze_cpue would
+  # otherwise resolve silently with dplyr::first().
+  catch <- make_catch()
+  extra  <- catch[1, ]                 # R1, pass 1
+  extra$species        <- "RBT"
+  extra$effort_seconds <- 999
+  err <- catch_cpue_error(rbind(catch, extra), make_meta(), strict = FALSE)
+  expect_true(any(grepl("effort_seconds varies within", err$failures)))
+})
+
+test_that("within-pass amperage disagreement is reported", {
+  catch <- make_catch()
+  catch$amperage <- 4
+  extra  <- catch[1, ]                 # R1, pass 1
+  extra$species  <- "RBT"
+  extra$amperage <- 9                  # same pass, different current
+  err <- catch_cpue_error(rbind(catch, extra), make_meta(), strict = FALSE)
+  expect_true(any(grepl("amperage varies within", err$failures)))
+})
+
 test_that("preview truncates beyond 5 orphan IDs and reports total", {
   catch <- make_catch()
   # Add 7 orphan reach IDs

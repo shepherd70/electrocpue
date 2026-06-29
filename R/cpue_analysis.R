@@ -116,12 +116,16 @@ build_pass_matrix <- function(catch_data) {
 #'   `"auto"` (default), `"zippin"`, or `"carle_strub"`.
 #' @param effort_basis Denominator for the effort-standardized catch
 #'   rate: `"seconds"` (default) or `"amp_seconds"`. The latter requires
-#'   an `amperage` column in `catch_data`.
+#'   an `amperage` column in `catch_data` whose values are all present
+#'   (non-`NA`) and positive.
 #' @param alpha,beta Carle & Strub prior parameters (see
 #'   [estimate_population()]).
 #' @param validate Logical. If `TRUE` (default), run
-#'   [validate_cpue_input()] first. Set `FALSE` to skip when inputs are
-#'   already known to be valid.
+#'   [validate_cpue_input()] first. Set `FALSE` only when inputs are
+#'   already known to be valid: validation also guards structural
+#'   assumptions the pipeline relies on -- notably pass numbers being
+#'   contiguous from 1 -- and skipping it on, say, non-contiguous passes
+#'   (1, 2, 4) lets them collapse into a silently wrong depletion series.
 #'
 #' @return A data frame with one row per `reach_id` x `date` x `species`
 #'   and columns: keys (`reach_id`, `date`, `species`); estimation
@@ -162,6 +166,21 @@ analyze_cpue <- function(catch_data, reach_metadata,
     cli::cli_abort(
       c("{.code effort_basis = \"amp_seconds\"} requires an {.field amperage} column in {.arg catch_data}.",
         "i" = "Use {.code effort_basis = \"seconds\"} or add an amperage column."),
+      class = "cpue_analysis_error"
+    )
+  }
+
+  # With amp_seconds the amperage column is the effort multiplier, so an
+  # absent (NA) or non-positive value would silently yield an NA or
+  # non-positive amp-second effort and a meaningless CPUE. Reject it up front
+  # rather than propagating the problem into the output.
+  if (effort_basis == "amp_seconds" &&
+      (!is.numeric(catch_data$amperage) ||
+       anyNA(catch_data$amperage) ||
+       any(catch_data$amperage <= 0))) {
+    cli::cli_abort(
+      c("{.field amperage} must be numeric, non-{.val NA}, and positive for {.code effort_basis = \"amp_seconds\"}.",
+        "i" = "A missing or non-positive amperage gives an undefined amp-second effort."),
       class = "cpue_analysis_error"
     )
   }

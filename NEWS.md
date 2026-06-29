@@ -38,6 +38,23 @@ review of those fixes:
   rate from a zero-effort survey is dropped). Abundance and density means
   remain restricted to usable surveys.
 
+Minor-finding cleanup from the same audit:
+
+* **Amp-second effort guards its denominator.** `analyze_cpue()` now
+  rejects a missing (`NA`) or non-positive `amperage` when
+  `effort_basis = "amp_seconds"`, instead of silently producing an `NA`
+  or meaningless catch rate.
+* **Within-pass effort consistency is validated.** `validate_cpue_input()`
+  now rejects a `reach_id` × `date` × `pass_number` whose species rows
+  disagree on `effort_seconds` (or `amperage`) — a data-entry error
+  `analyze_cpue()` would otherwise resolve silently by keeping the first
+  value.
+* **Documentation.** Clarified that the Carle & Strub standard errors are
+  the Zippin large-sample approximation evaluated at the C&S point
+  estimate; noted the very wide two-survey (df = 1) density interval;
+  warned that `validate = FALSE` forgoes the contiguous-pass guard; and
+  added the orphaned Zippin (1956) reference.
+
 # electrocpue 0.1.0
 
 First feature-complete release. The package now supports the full

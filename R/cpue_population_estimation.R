@@ -81,6 +81,9 @@
 #' `note = "no_convergence"`, `N = NA`.)
 #'
 #' @references
+#' Zippin, C. (1956). An evaluation of the removal method of estimating
+#'   animal populations. Biometrics 12:163-189.
+#'
 #' Zippin, C. (1958). The removal method of population estimation.
 #'   Journal of Wildlife Management 22:82-90.
 #'
@@ -161,6 +164,16 @@ estimate_population <- function(counts,
 }
 
 
+# ---- Search bound ------------------------------------------------------------
+
+# Maximum iterations for the integer removal searches before declaring
+# non-convergence. A backstop against a pathological (e.g. violently
+# non-depleting) series rather than a tuning knob: real fisheries series
+# converge in << 100 steps, so this leaves a ~four-order-of-magnitude safety
+# margin. A search that exhausts it returns note = "no_convergence", N = NA.
+.max_removal_iter <- 1e6
+
+
 # ---- Zippin maximum-likelihood estimator -------------------------------------
 
 #' Zippin K-pass removal estimator
@@ -239,6 +252,12 @@ zippin_estimate <- function(counts, quiet = FALSE) {
 #' (Carle & Strub 1978). More robust than Zippin when depletion is weak,
 #' and the recommended default for routine use.
 #'
+#' The reported standard errors (`N_se`, `p_se`) are the Zippin
+#' large-sample variance formulae evaluated at the Carle & Strub point
+#' estimate, which is what `FSA::removal()` returns. Carle & Strub do not
+#' derive a separate variance, so this is the conventional approximation
+#' rather than an exact Carle & Strub standard error.
+#'
 #' Unlike Zippin, Carle & Strub does not reject a non-depleting series
 #' outright: when the catch does not decline across passes (some later
 #' pass catches as many fish as the first, or more) it can still converge
@@ -308,10 +327,6 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
 
 
 # ---- Variance helpers (Zippin large-sample formulae) -------------------------
-
-# Maximum iterations for the integer removal searches before declaring
-# non-convergence. Generous; real fisheries series converge in << 100.
-.max_removal_iter <- 1e6
 
 #' Large-sample variance of the Zippin abundance estimate
 #' @keywords internal

@@ -63,6 +63,11 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 - [x] Add CI: `.github/workflows/R-CMD-check.yaml` (full check incl. vignette via pandoc on macOS/Windows/Linux; README badge added)
 - [x] Release PR #1 (`release/v0.1.0` → `main`) merged via merge commit `3c46b15`. **CI green on all 5 jobs** (macOS, Windows, Linux × R release/devel/oldrel) — vignette render confirmed under pandoc, closing the local gap.
 - [ ] Complete `cran-comments.md` if targeting CRAN submission
+  - **Dependency caveat (deferred 2026-06):** `Imports: tritonIngest` is a
+    GitHub-only package pulled via `Remotes:`, which CRAN does not permit. CRAN
+    would first require tritonIngest on CRAN, vendoring the kernel, or moving it
+    to `Suggests` behind a runtime guard. Fine as-is for GitHub/`pak`
+    distribution; revisit only if CRAN becomes a target. (2026-06 audit, Minor.)
 - [x] Tag `v0.1.0` — annotated tag at `2dcee27` (an ancestor of `main`) pushed to GitHub.
 
 ---
@@ -88,4 +93,4 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 - Version bumped to **0.1.0**; maintainer email fixed (`shepherd70@gmail.com`); NEWS.md rewritten; README is now a real quick-start.
 - **Remaining before tagging v0.1.0:** (1) measure coverage once `covr` available; (2) confirm full check incl. vignette on pandoc-equipped CI (Windows + macOS); (3) optional `cran-comments.md` / `CONTRIBUTING.md`; (4) commit + tag `v0.1.0`.
 - `README.Rmd` has been rewritten as a real quick-start (description, badges, three verified worked examples) and matches the rendered `README.md`.
-- **tritonIngest version divergence (open decision):** electrocpue pins `tritonIngest (>= 0.3.1)` (Remotes `@v0.3.1`); `tritonmr` has since moved to `tritonIngest (>= 0.4.0)` (Remotes `@v0.4.2`). electrocpue only needs the kernel functions present since 0.3.1, so this is not a breakage — but the two consumers now build against different kernel versions. Decide whether to bump electrocpue's pin to `@v0.4.2` for a single shared kernel version across the program, or leave it pinned low deliberately. (Not yet actioned.)
+- **tritonIngest version alignment:** electrocpue now pins `tritonIngest (>= 0.4.0)` (Remotes `@v0.4.2`), matching `tritonmr`, so the two consumers build against one shared kernel version. (Bumped from the earlier `>= 0.3.1` pin; resolves the version-divergence decision noted during the renv/tracker pass.)

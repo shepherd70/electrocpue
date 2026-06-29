@@ -17,12 +17,13 @@
 #               3. Check no NA in required identifier columns     (kernel)
 #               4. Check pass numbers contiguous from 1 per reach x date
 #               5. Check effort > 0 for every record
-#               6. Check counts are non-negative integers
-#               7. Check reach extent (length_m, area_m2) > 0 for the
+#               6. Check effort/amperage constant within each pass
+#               7. Check counts are non-negative integers
+#               8. Check reach extent (length_m, area_m2) > 0 for the
 #                  reaches catch_data actually references
-#               8. Check reach_id consistency across tables
-#               9. Check species present for every reach x date
-#              10. Collate failures; abort once via the kernel's
+#               9. Check reach_id consistency across tables
+#              10. Check species present for every reach x date
+#              11. Collate failures; abort once via the kernel's
 #                  validation_abort() with class cpue_validation_error
 # Dependencies: tritonIngest - shared validation kernel
 #               dplyr     - tidy data manipulation
@@ -132,6 +133,7 @@ validate_cpue_input <- function(catch_data, reach_metadata, strict = TRUE) {
     tritonIngest::check_no_na(reach_metadata, "reach_id", "reach_metadata"),
     check_pass_contiguity(catch_data),
     check_effort_positive(catch_data),
+    check_within_pass_consistency(catch_data),
     check_counts_nonneg_integer(catch_data),
     check_reach_extent_positive(reach_metadata, used_reach_ids),
     check_reach_id_consistency(catch_data, reach_metadata),
@@ -198,6 +200,50 @@ check_pass_contiguity <- function(catch_data) {
       "found {paste(passes, collapse = ', ')}"
     ))
   })
+}
+
+
+#' Check effort and amperage are constant within each pass
+#'
+#' `effort_seconds` -- and `amperage` where present -- describe a pass, not
+#' a species, so they are recorded identically on every species row of a
+#' given `reach_id` x `date` x `pass_number`. When those rows disagree it
+#' is a data-entry error: [analyze_cpue()] would otherwise resolve it
+#' silently with `dplyr::first()`, keeping one value and discarding the
+#' rest, so it is rejected here instead.
+#'
+#' @param catch_data See [validate_cpue_input()].
+#'
+#' @return Character vector of failure messages.
+#'
+#' @keywords internal
+check_within_pass_consistency <- function(catch_data) {
+
+  pass_cols <- c("reach_id", "date", "pass_number")
+  if (!all(pass_cols %in% names(catch_data))) return(character(0))
+
+  # Only present, numeric pass-level columns: a wrong type is already
+  # reported by the kernel, and comparing it here could abort the battery.
+  cols <- intersect(c("effort_seconds", "amperage"), names(catch_data))
+  cols <- cols[purrr::map_lgl(cols, ~ is.numeric(catch_data[[.x]]))]
+  if (length(cols) == 0) return(character(0))
+
+  problems <- purrr::map_chr(cols, function(col) {
+    n_per_group <- catch_data |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(pass_cols))) |>
+      dplyr::summarise(n_val = dplyr::n_distinct(.data[[col]]), .groups = "drop")
+    bad_n <- sum(n_per_group$n_val > 1)
+    if (bad_n == 0) {
+      NA_character_
+    } else {
+      as.character(glue::glue(
+        "catch_data${col} varies within {bad_n} reach x date x pass ",
+        "group(s); it must be constant across the species rows of a pass"
+      ))
+    }
+  })
+
+  problems[!is.na(problems)]
 }
 
 

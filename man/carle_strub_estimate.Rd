@@ -27,6 +27,12 @@ Weighted-likelihood (Bayesian, uniform-prior) depletion estimator
 and the recommended default for routine use.
 }
 \details{
+The reported standard errors (\code{N_se}, \code{p_se}) are the Zippin
+large-sample variance formulae evaluated at the Carle & Strub point
+estimate, which is what \code{FSA::removal()} returns. Carle & Strub do not
+derive a separate variance, so this is the conventional approximation
+rather than an exact Carle & Strub standard error.
+
 Unlike Zippin, Carle & Strub does not reject a non-depleting series
 outright: when the catch does not decline across passes (some later
 pass catches as many fish as the first, or more) it can still converge

@@ -65,6 +65,9 @@ estimate_population(c(45, 18, 7))
 estimate_population(c(38, 26, 12), method = "carle_strub")
 }
 \references{
+Zippin, C. (1956). An evaluation of the removal method of estimating
+animal populations. Biometrics 12:163-189.
+
 Zippin, C. (1958). The removal method of population estimation.
 Journal of Wildlife Management 22:82-90.
 

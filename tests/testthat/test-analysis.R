@@ -130,6 +130,26 @@ test_that("amp_seconds basis works and drives cpue when amperage present", {
   expect_identical(unique(res$effort_basis), "amp_seconds")
 })
 
+test_that("amp_seconds basis rejects an NA amperage", {
+  catch <- make_catch()
+  catch$amperage    <- 4
+  catch$amperage[1] <- NA_real_   # one missing current reading
+  expect_error(
+    analyze_cpue(catch, make_meta(), effort_basis = "amp_seconds", validate = FALSE),
+    class = "cpue_analysis_error"
+  )
+})
+
+test_that("amp_seconds basis rejects a non-positive amperage", {
+  catch <- make_catch()
+  catch$amperage    <- 4
+  catch$amperage[2] <- 0          # zero current -> undefined amp-second effort
+  expect_error(
+    analyze_cpue(catch, make_meta(), effort_basis = "amp_seconds", validate = FALSE),
+    class = "cpue_analysis_error"
+  )
+})
+
 # ---- analyze_cpue: method + validation wiring --------------------------------
 
 test_that("method argument is passed through to the estimator", {

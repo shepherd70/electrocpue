@@ -39,6 +39,11 @@ Wald (normal) interval is used. With two or more surveys, a Student-t
 interval on the survey-level densities is used, which reflects total
 between-survey variability (biological plus measurement). Lower limits
 are truncated at zero.
+
+With exactly two usable surveys the t-interval has a single degree of
+freedom (\code{t_{0.975}} is about 12.7), so the interval is very wide and
+is better read as a weak bound than a precise one; precision improves
+quickly as more surveys enter the group.
 }
 \examples{
 catch <- data.frame(

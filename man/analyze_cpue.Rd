@@ -27,14 +27,18 @@ present.}
 
 \item{effort_basis}{Denominator for the effort-standardized catch
 rate: \code{"seconds"} (default) or \code{"amp_seconds"}. The latter requires
-an \code{amperage} column in \code{catch_data}.}
+an \code{amperage} column in \code{catch_data} whose values are all present
+(non-\code{NA}) and positive.}
 
 \item{alpha, beta}{Carle & Strub prior parameters (see
 \code{\link[=estimate_population]{estimate_population()}}).}
 
 \item{validate}{Logical. If \code{TRUE} (default), run
-\code{\link[=validate_cpue_input]{validate_cpue_input()}} first. Set \code{FALSE} to skip when inputs are
-already known to be valid.}
+\code{\link[=validate_cpue_input]{validate_cpue_input()}} first. Set \code{FALSE} only when inputs are
+already known to be valid: validation also guards structural assumptions
+the pipeline relies on -- notably pass numbers being contiguous from 1 --
+and skipping it on, say, non-contiguous passes (1, 2, 4) lets them
+collapse into a silently wrong depletion series.}
 }
 \value{
 A data frame with one row per \code{reach_id} x \code{date} x \code{species}

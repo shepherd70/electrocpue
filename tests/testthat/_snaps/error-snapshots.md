@@ -50,6 +50,15 @@
       ! Input validation failed with 1 issue(s):
         x reach_metadata$length_m has 1 non-positive or NA value(s); every reach must have length_m > 0
 
+# validate_cpue_input reports within-pass effort disagreement
+
+    Code
+      validate_cpue_input(rbind(catch, extra), snap_meta(), strict = FALSE)
+    Condition
+      Error:
+      ! Input validation failed with 1 issue(s):
+        x catch_data$effort_seconds varies within 1 reach x date x pass group(s); it must be constant across the species rows of a pass
+
 # single-pass series warns and returns NA
 
     Code
@@ -126,6 +135,15 @@
       Error in `analyze_cpue()`:
       ! `effort_basis = "amp_seconds"` requires an amperage column in `catch_data`.
       i Use `effort_basis = "seconds"` or add an amperage column.
+
+# analyze_cpue rejects amp_seconds basis with an invalid amperage
+
+    Code
+      analyze_cpue(catch, snap_meta(), effort_basis = "amp_seconds", validate = FALSE)
+    Condition
+      Error in `analyze_cpue()`:
+      ! amperage must be numeric, non-"NA", and positive for `effort_basis = "amp_seconds"`.
+      i A missing or non-positive amperage gives an undefined amp-second effort.
 
 # analyze_cpue warns when some series do not converge
 
