@@ -91,6 +91,19 @@ example_catch <- example_catch[order(example_catch$reach_id,
                                      example_catch$pass_number), ]
 rownames(example_catch) <- NULL
 
+# Effort, amperage, and voltage describe a single shocking event, so they are
+# properties of a reach x date x pass -- not of a species. The per-row draws
+# above gave each species row its own values; collapse each pass to its first
+# row's value so the shipped data reflects one shocking event per pass. (Counts
+# are untouched, so depletion estimates are unchanged.)
+pass_key <- with(example_catch,
+                 paste(reach_id, date, pass_number, sep = "|"))
+for (col in c("effort_seconds", "amperage", "voltage")) {
+  example_catch[[col]] <- stats::ave(
+    example_catch[[col]], pass_key, FUN = function(v) v[1]
+  )
+}
+
 # ---- Save --------------------------------------------------------------------
 
 usethis::use_data(example_catch, example_reach, overwrite = TRUE)
