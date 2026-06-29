@@ -4,7 +4,7 @@
 \alias{summarize_cpue}
 \title{Summarize CPUE analysis output to a coarser grain}
 \usage{
-summarize_cpue(x, by = c("reach_id", "species"), level = 0.95)
+summarize_cpue(x, by = c("reach_id", "species"), level = 0.95, p_min = 0.4)
 }
 \arguments{
 \item{x}{A data frame produced by \code{\link[=analyze_cpue]{analyze_cpue()}}.}
@@ -14,13 +14,23 @@ summarize_cpue(x, by = c("reach_id", "species"), level = 0.95)
 
 \item{level}{Confidence level for the density intervals. Defaults to
 \code{0.95}.}
+
+\item{p_min}{Minimum estimated capture probability for a survey to enter
+the confidence interval. Surveys below it (where the removal estimate is
+biased) are held out and the reach is flagged \code{weak}. Defaults to
+\code{0.4}.}
 }
 \value{
 A data frame with one row per group and columns: the grouping
 columns; \code{n_surveys}, \code{n_converged}, \code{prop_converged},
-\code{n_assumption_violated}; \code{catch_total}; \code{N_mean}; mean and
-lower/upper interval limits for \code{density_per_m} and \code{density_per_m2};
-and \code{cpue_mean}.
+\code{n_assumption_violated}, \code{n_identified} (surveys entering the
+interval), \code{weak} (logical; the interval is unreliable -- it rests on
+fewer than two well-identified surveys, or omits a survey that fed the
+point estimate); \code{catch_total}; \code{N_mean}; mean and lower/upper
+interval limits for \code{density_per_m} and \code{density_per_m2}; and
+\code{cpue_mean}. The \code{*_mean} columns are simple averages over the
+converged, depleting surveys; the interval limits are \code{NA} when no
+survey is well identified.
 }
 \description{
 Aggregates the per-survey output of \code{\link[=analyze_cpue]{analyze_cpue()}} (one row per
@@ -32,18 +42,24 @@ assumption held; \code{cpue_mean}, a model-free observed quantity, is
 averaged over all surveys with a finite catch rate.
 }
 \details{
-Interval method depends on the number of usable surveys in a group
-(converged and not flagged \code{assumption_violated}). With a single
-survey, only the depletion estimate's standard error is available, so a
-Wald (normal) interval is used. With two or more surveys, a Student-t
-interval on the survey-level densities is used, which reflects total
-between-survey variability (biological plus measurement). Lower limits
-are truncated at zero.
+The estimand is the reach mean density. Each well-identified survey
+contributes its profile-likelihood interval (\code{N_lwr}/\code{N_upr}); these
+are pooled on the log scale -- so the interval stays positive and matches
+the right-skew of removal estimates -- combining each survey's measurement
+uncertainty with the between-survey (temporal) variation by
+DerSimonian-Laird random effects with the Knapp-Hartung-Sidik-Jonkman
+variance and a Student-t critical value, which keeps coverage near the
+nominal level at the few surveys typical of a monitoring season
+(simulation: about 0.92-0.96 at two visits with capture probability
+>= 0.45). The multiplicative half-width is capped at a factor of 20.
 
-With exactly two usable surveys the t-interval has a single degree of
-freedom (\code{t_{0.975}} is about 12.7), so the interval is very wide and
-is better read as a weak bound than a precise one; precision improves
-quickly as more surveys enter the group.
+A survey enters the interval only when it converged, did not violate the
+depletion assumption, was identifiable (its abundance is bounded from
+above), and had an estimated capture probability of at least \code{p_min};
+below that the removal estimate is biased and no interval is reliable.
+When fewer than two surveys qualify, or a contributing survey is held
+out, the reach is flagged \code{weak} and should be read as a lower-bounded
+estimate rather than a precise interval.
 }
 \examples{
 catch <- data.frame(

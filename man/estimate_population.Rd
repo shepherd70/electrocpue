@@ -28,10 +28,13 @@ series in a loop. Defaults to \code{FALSE}.}
 }
 \value{
 A one-row data frame with columns: \code{method}, \code{n_passes},
-\code{catch_total}, \code{N} (population estimate), \code{N_se}, \code{p} (per-pass
-capture probability), \code{p_se}, \code{converged} (logical), and \code{note}
-(one of \code{"ok"}, \code{"single_pass"}, \code{"zero_catch"}, \code{"model_failure"},
-\code{"no_convergence"}, \code{"assumption_violated"}).
+\code{catch_total}, \code{N} (population estimate), \code{N_se}, \code{N_lwr}/\code{N_upr}
+(profile-likelihood confidence limits for \code{N}; respect \code{N >= T} and
+are asymmetric), \code{p} (per-pass capture probability), \code{p_se},
+\code{converged} (logical), \code{identifiable} (logical; \code{FALSE} when the data
+cannot bound \code{N} from above -- typically low capture probability), and
+\code{note} (one of \code{"ok"}, \code{"single_pass"}, \code{"zero_catch"},
+\code{"model_failure"}, \code{"no_convergence"}, \code{"assumption_violated"}).
 }
 \description{
 Estimates abundance for a single removal series (one reach x date x

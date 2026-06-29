@@ -4,7 +4,20 @@
 \alias{.build_estimate}
 \title{Assemble the standard one-row estimate result}
 \usage{
-.build_estimate(method, k, T, N, N_var, p, p_var, converged, note)
+.build_estimate(
+  method,
+  k,
+  T,
+  N,
+  N_var,
+  p,
+  p_var,
+  converged,
+  note,
+  N_lwr = NA_real_,
+  N_upr = NA_real_,
+  identifiable = FALSE
+)
 }
 \description{
 Assemble the standard one-row estimate result

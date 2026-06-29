@@ -8,20 +8,21 @@
 #               grain (by default reach x species, collapsing repeat survey
 #               dates) and attaches confidence intervals to the density
 #               estimates.
-# Logic:        For each summary group, over the usable surveys (converged
-#               and not flagged assumption_violated):
-#                 - single survey  -> Wald CI from the depletion standard error
-#                 - >= 2 surveys   -> t-interval on the survey-level densities,
-#                                     capturing total (biological + measurement)
-#                                     between-survey variability
-#               Lower interval limits are truncated at zero (density cannot be
-#               negative). Surveys that did not converge, or whose depletion
-#               assumption was violated, are excluded from the abundance /
-#               density means and intervals; the violated ones are counted in
-#               n_assumption_violated. CPUE, a model-free observed quantity, is
-#               averaged over every survey with a finite catch rate.
+# Logic:        Estimand: the reach mean density. For each summary group the
+#               well-identified surveys (converged, depletion assumption held,
+#               abundance bounded above, capture probability >= p_min) are
+#               pooled on the log scale -- each survey's profile-likelihood
+#               interval combined with between-survey variation by
+#               DerSimonian-Laird random effects + Knapp-Hartung variance, a
+#               Student-t critical value, and a x20 half-width cap. Positivity
+#               is intrinsic (no catch floor). A group resting on < 2 well-
+#               identified surveys is flagged weak. Point means (N_mean,
+#               density_*_mean) are simple averages over the converged,
+#               depleting surveys; assumption-violated surveys are counted in
+#               n_assumption_violated; CPUE, model-free, is averaged over every
+#               survey with a finite catch rate.
 # Dependencies: dplyr  - grouped summarise via group_modify
-#               stats  - qnorm, qt, sd
+#               stats  - qnorm, qt
 #               cli    - classed errors
 #-------------------------------------------------------------------------------
 

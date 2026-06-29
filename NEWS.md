@@ -1,5 +1,31 @@
 # electrocpue (development version)
 
+## Confidence intervals rebuilt (profile-likelihood + random-effects pooling)
+
+The depletion-summary confidence intervals were rebuilt after review found
+the previous method produced impossible and unstable bounds. The new method
+is verified by Monte-Carlo simulation.
+
+* **Per-survey profile-likelihood intervals.** `estimate_population()` (and
+  `zippin_estimate()` / `carle_strub_estimate()`) now return `N_lwr`/`N_upr` --
+  profile-likelihood limits that respect `N >= catch` and the right-skew of
+  the estimate -- plus an `identifiable` flag that is `FALSE` when the data
+  cannot bound abundance from above (low capture probability). They replace
+  reliance on the symmetric large-sample `N_se`, whose Wald interval could
+  fall below the catch.
+* **Reach intervals by random-effects pooling.** `summarize_cpue()` pools the
+  well-identified surveys' profile uncertainty with between-survey variation
+  on the log scale (DerSimonian-Laird with the Knapp-Hartung-Sidik-Jonkman
+  variance), so the interval stays positive, carries each survey's depletion
+  uncertainty, and does not explode at two visits. Verified reach-mean
+  coverage is about 0.92-0.96 at capture probability >= 0.45; the ad-hoc
+  truncation at zero is gone.
+* **Weak reaches are flagged, not faked.** New `n_identified` and `weak`
+  columns mark groups whose interval rests on fewer than two well-identified
+  surveys, or whose capture probability falls below the new `p_min` argument
+  (default `0.4`) -- where the removal estimate is biased and no interval is
+  reliable. The estimand is stated as the reach mean density.
+
 Fixes for the four major findings of the 2026-06 audit
 (`docs/electrocpue-audit-2026-06.md`), with follow-up corrections from a
 review of those fixes:

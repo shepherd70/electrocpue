@@ -43,8 +43,9 @@ collapse into a silently wrong depletion series.}
 \value{
 A data frame with one row per \code{reach_id} x \code{date} x \code{species}
 and columns: keys (\code{reach_id}, \code{date}, \code{species}); estimation
-(\code{method}, \code{n_passes}, \code{catch_total}, \code{N}, \code{N_se}, \code{p}, \code{p_se},
-\code{converged}, \code{note}); reach extent (\code{length_m}, \code{area_m2}); effort
+(\code{method}, \code{n_passes}, \code{catch_total}, \code{N}, \code{N_se}, \code{N_lwr},
+\code{N_upr}, \code{p}, \code{p_se}, \code{converged}, \code{identifiable}, \code{note});
+reach extent (\code{length_m}, \code{area_m2}); effort
 (\code{effort_seconds}, \code{effort_amp_seconds}, \code{effort_basis}, \code{cpue});
 and density (\code{density_per_m}, \code{density_per_m2}). \code{area_m2}-dependent
 columns are \code{NA} when areal metadata is absent.

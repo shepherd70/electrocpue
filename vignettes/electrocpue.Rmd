@@ -94,33 +94,47 @@ are returned; areal density is `NA` when reach area is unavailable.
 
 ## Step 4 — Summarize repeat surveys
 
-`summarize_cpue()` collapses the two visits per reach to a single
-reach × species summary with confidence intervals on density. With two
-or more surveys it uses a t-interval on the survey densities; with a
-single survey it uses a Wald interval from the depletion standard error.
+`summarize_cpue()` collapses the repeat visits per reach to a single
+reach × species summary with a confidence interval on density. The
+interval pools each survey's profile-likelihood uncertainty with the
+between-survey variation on the log scale. A reach is flagged `weak`
+(and `n_identified` records how many surveys backed the interval) when
+too few surveys are well enough identified to support it — at low capture
+probability the removal estimate is biased, so the interval is withheld
+rather than shown as a confident bar.
 
 ```{r summarize}
 smry <- summarize_cpue(res, level = 0.95)
-smry[, c("reach_id", "species", "n_surveys", "N_mean",
-         "density_per_m_mean", "density_per_m_lwr", "density_per_m_upr")]
+smry[, c("reach_id", "species", "n_surveys", "n_identified", "weak",
+         "N_mean", "density_per_m_mean",
+         "density_per_m_lwr", "density_per_m_upr")]
 ```
 
 ## Visualizing density with uncertainty
+
+Identified reaches carry a 95% interval; a `weak` reach is drawn as a
+hollow point with no bar (the interval would not be trustworthy).
 
 ```{r plot, eval = requireNamespace("ggplot2", quietly = TRUE)}
 library(ggplot2)
 
 ggplot(smry, aes(x = reach_id, y = density_per_m_mean, colour = species)) +
-  geom_point(position = position_dodge(width = 0.4), size = 2.5) +
   geom_errorbar(
     aes(ymin = density_per_m_lwr, ymax = density_per_m_upr),
     width = 0.2,
     position = position_dodge(width = 0.4)
   ) +
+  geom_point(aes(shape = weak),
+             position = position_dodge(width = 0.4), size = 2.5) +
+  scale_shape_manual(
+    values = c(`FALSE` = 16, `TRUE` = 1),
+    labels = c(`FALSE` = "identified", `TRUE` = "weak"),
+    name   = "interval"
+  ) +
   labs(
     x = "Reach", y = "Density (fish / m)", colour = "Species",
     title = "Estimated linear density by reach",
-    subtitle = "Mean of two surveys; 95% confidence intervals"
+    subtitle = "Reach mean; 95% profile-likelihood pooled intervals"
   ) +
   theme_minimal(base_size = 12)
 ```
