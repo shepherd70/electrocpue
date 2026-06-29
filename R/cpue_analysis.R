@@ -129,8 +129,9 @@ build_pass_matrix <- function(catch_data) {
 #'
 #' @return A data frame with one row per `reach_id` x `date` x `species`
 #'   and columns: keys (`reach_id`, `date`, `species`); estimation
-#'   (`method`, `n_passes`, `catch_total`, `N`, `N_se`, `p`, `p_se`,
-#'   `converged`, `note`); reach extent (`length_m`, `area_m2`); effort
+#'   (`method`, `n_passes`, `catch_total`, `N`, `N_se`, `N_lwr`, `N_upr`,
+#'   `p`, `p_se`, `converged`, `identifiable`, `note`); reach extent
+#'   (`length_m`, `area_m2`); effort
 #'   (`effort_seconds`, `effort_amp_seconds`, `effort_basis`, `cpue`);
 #'   and density (`density_per_m`, `density_per_m2`). `area_m2`-dependent
 #'   columns are `NA` when areal metadata is absent.
@@ -263,7 +264,7 @@ analyze_cpue <- function(catch_data, reach_metadata,
   res[, c(
     "reach_id", "date", "species",
     "method", "n_passes", "catch_total",
-    "N", "N_se", "p", "p_se", "converged", "note",
+    "N", "N_se", "N_lwr", "N_upr", "p", "p_se", "converged", "identifiable", "note",
     "length_m", "area_m2",
     "effort_seconds", "effort_amp_seconds", "effort_basis", "cpue",
     "density_per_m", "density_per_m2"

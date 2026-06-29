@@ -40,7 +40,8 @@ test_that("estimate returns a one-row data frame with the documented columns", {
   expect_s3_class(res, "data.frame")
   expect_identical(nrow(res), 1L)
   expect_named(res, c("method", "n_passes", "catch_total", "N", "N_se",
-                      "p", "p_se", "converged", "note"))
+                      "N_lwr", "N_upr", "p", "p_se", "converged",
+                      "identifiable", "note"))
   expect_identical(res$n_passes, 3L)
   expect_identical(res$catch_total, 70)
   expect_true(res$converged)
