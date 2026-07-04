@@ -1,3 +1,17 @@
+# electrocpue (development version)
+
+## Standalone Shiny front-end
+
+* **`run_app()` launches a bundled Shiny application** — a standalone
+  front-end for the full validate → estimate → analyze → summarize
+  workflow. Explore the bundled example data or upload your own catch and
+  reach tables, pick an estimator and effort basis, and read back
+  per-survey abundance with profile-likelihood intervals, pooled reach
+  density and CPUE, and figures with confidence intervals. The confidence
+  level and `p_min` sliders recompute the summary and plots live. The app
+  lives under `inst/shiny-app`; its packages (shiny, bslib, DT, ggplot2)
+  are `Suggests`, so the estimation core stays dependency-light.
+
 # electrocpue 0.2.0
 
 ## Confidence intervals rebuilt (profile-likelihood + random-effects pooling)
