@@ -1,4 +1,4 @@
-# Tests for summarize_cpue() and the .summary_ci() helper.
+# Tests for summarize_cpue() and the .hksj_logci() helper.
 
 # ---- Fixtures ----------------------------------------------------------------
 
@@ -14,9 +14,14 @@ make_analysis <- function() {
     catch_total = c(70, 60, 80, 30),
     N           = c(74, 62, 80, 32),
     N_se        = c(3.2366, 2.5, 4.0, 2.4),
+    # Profile-likelihood limits: bracket N, respect N >= catch. All well
+    # identified (p = 0.6 >= p_min, bounded above), so weak = FALSE.
+    N_lwr       = c(70, 60, 80, 30),
+    N_upr       = c(82, 68, 90, 38),
     p           = 0.6,
     p_se        = 0.07,
     converged   = c(TRUE, TRUE, TRUE, TRUE),
+    identifiable = c(TRUE, TRUE, TRUE, TRUE),
     note        = "ok",
     length_m    = 100,
     area_m2     = 800,
@@ -38,6 +43,7 @@ test_that("summarize_cpue returns one row per reach x species with documented co
   expect_named(res, c(
     "reach_id", "species",
     "n_surveys", "n_converged", "prop_converged", "n_assumption_violated",
+    "n_identified", "weak",
     "catch_total", "N_mean",
     "density_per_m_mean", "density_per_m_lwr", "density_per_m_upr",
     "density_per_m2_mean", "density_per_m2_lwr", "density_per_m2_upr",
@@ -57,27 +63,27 @@ test_that("survey counts and catch totals aggregate correctly", {
 
 # ---- Confidence interval logic -----------------------------------------------
 
-test_that("single survey uses a Wald interval from the depletion SE", {
+test_that("a single identified survey gets a log-normal profile interval, flagged weak", {
   res <- summarize_cpue(make_analysis())
-  rbt <- res[res$species == "RBT", ]  # n = 1
-  z   <- stats::qnorm(0.975)
-  dens <- 32 / 100
-  se   <- 2.4 / 100
-  expect_equal(rbt$density_per_m_mean, dens)
-  expect_equal(rbt$density_per_m_lwr, dens - z * se)
-  expect_equal(rbt$density_per_m_upr, dens + z * se)
+  rbt <- res[res$species == "RBT", ]   # n = 1
+  expect_identical(rbt$n_identified, 1L)
+  expect_true(rbt$weak)                # one survey cannot pin the reach mean
+  d <- 32 / 100; dl <- 30 / 100; du <- 38 / 100
+  expect_equal(rbt$density_per_m_mean, d)
+  # single-survey limits are geometric about d (positive by construction)
+  expect_equal(rbt$density_per_m_lwr, d * sqrt(dl / du))
+  expect_equal(rbt$density_per_m_upr, d * sqrt(du / dl))
 })
 
-test_that("multiple surveys use a t-interval on the survey densities", {
+test_that("multiple identified surveys pool to a positive HKSJ interval, not flagged weak", {
   res <- summarize_cpue(make_analysis())
-  bnt <- res[res$species == "BNT", ]
-  vals <- c(74, 62, 80) / 100
-  m    <- mean(vals)
-  tcrit <- stats::qt(0.975, df = 2)
-  se_mean <- stats::sd(vals) / sqrt(3)
-  expect_equal(bnt$density_per_m_mean, m)
-  expect_equal(bnt$density_per_m_lwr, m - tcrit * se_mean)
-  expect_equal(bnt$density_per_m_upr, m + tcrit * se_mean)
+  bnt <- res[res$species == "BNT", ]   # n = 3, all identified
+  expect_identical(bnt$n_identified, 3L)
+  expect_false(bnt$weak)
+  expect_equal(bnt$density_per_m_mean, mean(c(74, 62, 80) / 100))  # arithmetic point
+  expect_gt(bnt$density_per_m_lwr, 0)                              # positive (log scale)
+  expect_lt(bnt$density_per_m_lwr, bnt$density_per_m_mean)
+  expect_gt(bnt$density_per_m_upr, bnt$density_per_m_mean)
 })
 
 test_that("level argument widens or narrows the interval", {
@@ -89,12 +95,11 @@ test_that("level argument widens or narrows the interval", {
             n$density_per_m_upr - n$density_per_m_lwr)
 })
 
-test_that("lower interval limit is truncated at zero", {
-  x <- make_analysis()
-  x <- x[x$species == "RBT", ]
-  x$N_se <- 1000  # huge SE would push Wald lower below zero
-  res <- summarize_cpue(x)
-  expect_gte(res$density_per_m_lwr, 0)
+test_that("the lower interval limit is positive by construction (log scale)", {
+  res <- summarize_cpue(make_analysis())
+  expect_true(all(res$density_per_m_lwr > 0))
+  ok <- !is.na(res$density_per_m2_lwr)
+  expect_true(all(res$density_per_m2_lwr[ok] > 0))
 })
 
 # ---- Areal density -----------------------------------------------------------

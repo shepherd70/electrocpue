@@ -67,7 +67,7 @@ test_that("analyze_cpue returns one tidy row per series with documented columns"
   expect_named(res, c(
     "reach_id", "date", "species",
     "method", "n_passes", "catch_total",
-    "N", "N_se", "p", "p_se", "converged", "note",
+    "N", "N_se", "N_lwr", "N_upr", "p", "p_se", "converged", "identifiable", "note",
     "length_m", "area_m2",
     "effort_seconds", "effort_amp_seconds", "effort_basis", "cpue",
     "density_per_m", "density_per_m2"

@@ -55,10 +55,13 @@
 #'   series in a loop. Defaults to `FALSE`.
 #'
 #' @return A one-row data frame with columns: `method`, `n_passes`,
-#'   `catch_total`, `N` (population estimate), `N_se`, `p` (per-pass
-#'   capture probability), `p_se`, `converged` (logical), and `note`
-#'   (one of `"ok"`, `"single_pass"`, `"zero_catch"`, `"model_failure"`,
-#'   `"no_convergence"`, `"assumption_violated"`).
+#'   `catch_total`, `N` (population estimate), `N_se`, `N_lwr`/`N_upr`
+#'   (profile-likelihood confidence limits for `N`; respect `N >= T` and
+#'   are asymmetric), `p` (per-pass capture probability), `p_se`,
+#'   `converged` (logical), `identifiable` (logical; `FALSE` when the data
+#'   cannot bound `N` from above -- typically low capture probability),
+#'   and `note` (one of `"ok"`, `"single_pass"`, `"zero_catch"`,
+#'   `"model_failure"`, `"no_convergence"`, `"assumption_violated"`).
 #'
 #' @details
 #' Point estimates and variances follow the standard removal formulae
@@ -234,11 +237,13 @@ zippin_estimate <- function(counts, quiet = FALSE) {
 
   p <- T / (k * N0 - X)
 
+  pci <- .profile_ci_N(counts)
   est <- .build_estimate(
     method = "zippin", k = k, T = T,
     N = N0, N_var = .zippin_no_var(N0, p, k),
     p = p, p_var = .zippin_p_var(N0, p, k),
-    converged = TRUE, note = "ok"
+    converged = TRUE, note = "ok",
+    N_lwr = pci$lwr, N_upr = pci$upr, identifiable = pci$identifiable
   )
   .flag_non_depletion(est, counts, quiet, "Zippin")
 }
@@ -316,11 +321,13 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
   # removal series should show net decline as the local population is
   # removed; .flag_non_depletion() downgrades note to "assumption_violated"
   # (with a warning) when it does not, rather than reporting a clean "ok".
+  pci <- .profile_ci_N(counts)
   est <- .build_estimate(
     method = "carle_strub", k = k, T = T,
     N = N0, N_var = .zippin_no_var(N0, p, k),
     p = p, p_var = .zippin_p_var(N0, p, k),
-    converged = TRUE, note = "ok"
+    converged = TRUE, note = "ok",
+    N_lwr = pci$lwr, N_upr = pci$upr, identifiable = pci$identifiable
   )
   .flag_non_depletion(est, counts, quiet, "Carle & Strub")
 }
@@ -380,17 +387,22 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
 
 #' Assemble the standard one-row estimate result
 #' @keywords internal
-.build_estimate <- function(method, k, T, N, N_var, p, p_var, converged, note) {
+.build_estimate <- function(method, k, T, N, N_var, p, p_var, converged, note,
+                            N_lwr = NA_real_, N_upr = NA_real_,
+                            identifiable = FALSE) {
   data.frame(
-    method      = method,
-    n_passes    = as.integer(k),
-    catch_total = as.numeric(T),
-    N           = as.numeric(N),
-    N_se        = if (is.na(N_var)) NA_real_ else sqrt(N_var),
-    p           = as.numeric(p),
-    p_se        = if (is.na(p_var)) NA_real_ else sqrt(p_var),
-    converged   = converged,
-    note        = note,
+    method       = method,
+    n_passes     = as.integer(k),
+    catch_total  = as.numeric(T),
+    N            = as.numeric(N),
+    N_se         = if (is.na(N_var)) NA_real_ else sqrt(N_var),
+    N_lwr        = as.numeric(N_lwr),
+    N_upr        = as.numeric(N_upr),
+    p            = as.numeric(p),
+    p_se         = if (is.na(p_var)) NA_real_ else sqrt(p_var),
+    converged    = converged,
+    identifiable = identifiable,
+    note         = note,
     stringsAsFactors = FALSE
   )
 }
@@ -408,7 +420,8 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
 .zero_catch_estimate <- function(method, k) {
   .build_estimate(method, k, T = 0, N = 0, N_var = 0,
                   p = NA_real_, p_var = NA_real_, converged = TRUE,
-                  note = "zero_catch")
+                  note = "zero_catch",
+                  N_lwr = 0, N_upr = 0, identifiable = TRUE)
 }
 
 #' Flag a converged estimate whose catch series does not deplete
@@ -451,4 +464,55 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
   }
 
   est
+}
+
+#' Profile-likelihood confidence interval for removal abundance
+#'
+#' Inverts the constant-capture-probability removal likelihood to bracket
+#' the abundance `N`. Unlike the symmetric large-sample Wald interval from
+#' `N_se`, the profile limits respect the hard lower boundary `N >= T` (the
+#' total catch -- a reach cannot hold fewer fish than were removed from it)
+#' and the right-skew of the estimate, and they widen honestly when
+#' depletion is weak.
+#'
+#' The search runs `N` up to `cap_mult * T`. If the likelihood is still
+#' admissible at that cap the upper limit is unbounded -- the data cannot
+#' bound abundance from above, which happens at low capture probability --
+#' and `identifiable` is returned `FALSE` so downstream summaries can flag
+#' the series rather than report a falsely finite interval.
+#'
+#' @param counts Pass-ordered catch vector (length >= 2, `sum(counts) > 0`).
+#' @param level Confidence level. Defaults to `0.95`.
+#' @param cap_mult Upper search bound as a multiple of the total catch.
+#'
+#' @return A list with `lwr`, `upr` (integer abundance limits) and
+#'   `identifiable` (logical).
+#'
+#' @keywords internal
+.profile_ci_N <- function(counts, level = 0.95, cap_mult = 50) {
+
+  k <- length(counts)
+  T <- sum(counts)
+  R <- c(0, cumsum(counts)[-k])              # fish removed before each pass
+  X <- sum(R)                                # == sum((k - i) * counts)
+  cap <- max(T * cap_mult, T + 300L)
+  Ns  <- T:cap
+  denom <- k * Ns - X
+  ok    <- denom > T                         # capture probability < 1
+  phat  <- T / denom
+
+  # Profile log-likelihood over integer N (terms constant in N dropped):
+  # for each pass, log C(N - R_i, c_i) profiled at phat(N).
+  term <- rowSums(vapply(
+    seq_len(k),
+    function(i) lgamma(Ns - R[i] + 1) - lgamma(Ns - R[i] - counts[i] + 1),
+    numeric(length(Ns))
+  ))
+  ll <- term + T * log(phat) + (denom - T) * log1p(-phat)
+  ll[!ok] <- -Inf
+
+  im     <- which.max(ll)
+  inside <- 2 * (ll[im] - ll) <= stats::qchisq(level, 1)
+  hi     <- max(Ns[inside])
+  list(lwr = min(Ns[inside]), upr = hi, identifiable = hi < cap)
 }

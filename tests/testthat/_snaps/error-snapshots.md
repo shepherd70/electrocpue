@@ -168,7 +168,7 @@
       summarize_cpue(data.frame(reach_id = "R1"))
     Condition
       Error in `summarize_cpue()`:
-      ! `x` is missing column(s): species, converged, note, catch_total, N, N_se, length_m, area_m2, cpue, density_per_m, and density_per_m2.
+      ! `x` is missing column(s): species, converged, identifiable, note, catch_total, N, N_lwr, N_upr, p, length_m, area_m2, cpue, density_per_m, and density_per_m2.
       i Did it come from `analyze_cpue()`?
 
 # summarize_cpue rejects an out-of-range confidence level
