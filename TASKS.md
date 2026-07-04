@@ -1,6 +1,6 @@
 # electrocpue — Development Task Tracker
 
-Package: `electrocpue` v0.1.0  
+Package: `electrocpue` v0.2.0  
 Goal: Multi-pass electrofishing CPUE analysis toolkit for R
 
 Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
@@ -62,12 +62,12 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 - [x] Bump version to `0.1.0` for first stable release (also fixed placeholder maintainer email; NEWS.md rewritten for 0.1.0)
 - [x] Add CI: `.github/workflows/R-CMD-check.yaml` (full check incl. vignette via pandoc on macOS/Windows/Linux; README badge added)
 - [x] Release PR #1 (`release/v0.1.0` → `main`) merged via merge commit `3c46b15`. **CI green on all 5 jobs** (macOS, Windows, Linux × R release/devel/oldrel) — vignette render confirmed under pandoc, closing the local gap.
-- [ ] Complete `cran-comments.md` if targeting CRAN submission
-  - **Dependency caveat (deferred 2026-06):** `Imports: tritonIngest` is a
-    GitHub-only package pulled via `Remotes:`, which CRAN does not permit. CRAN
-    would first require tritonIngest on CRAN, vendoring the kernel, or moving it
-    to `Suggests` behind a runtime guard. Fine as-is for GitHub/`pak`
-    distribution; revisit only if CRAN becomes a target. (2026-06 audit, Minor.)
+- [x] ~~Complete `cran-comments.md` if targeting CRAN submission~~ — **Won't do
+  (2026-07-04): CRAN is not a target.** electrocpue distributes via GitHub/`pak`.
+  This also resolves the dependency caveat as won't-fix: `Imports: tritonIngest`
+  is a GitHub-only package pulled via `Remotes:`, which CRAN does not permit —
+  but that only matters for CRAN, so no CRAN-submission of tritonIngest,
+  vendoring, or `Suggests`-with-guard rework is needed. (2026-06 audit, Minor.)
 - [x] Tag `v0.1.0` — annotated tag at `2dcee27` (an ancestor of `main`) pushed to GitHub.
 
 ---
@@ -81,6 +81,47 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 
 ---
 
+## Milestone 5 — Post-release hardening: audit remediation + CI rebuild (v0.2.0)
+
+### 2026-06 audit remediation (PR #8)
+- [x] Close all four **Major** findings — native-pipe R-version dependency
+  (`R >= 4.1.0`), reach-extent validation (`check_reach_extent_positive()`),
+  non-depleting-series flagging across every method, and honouring that flag
+  downstream in `analyze_cpue()` / `summarize_cpue()`. (See NEWS 0.2.0.)
+- [x] Close the **Minor** findings — amp-second denominator guard, within-pass
+  effort-consistency validation, and documentation clarifications.
+- [x] Security & provenance clean — `pi_audit` (1 MEDIUM triaged false-positive)
+  and commit provenance. (`docs/electrocpue-audit-2026-06.md`.)
+
+### Confidence-interval rebuild (PR #9)
+- [x] Per-survey **profile-likelihood** intervals — `N_lwr`/`N_upr` respecting
+  `N >= catch`, plus an `identifiable` flag — replacing the impossible/unstable
+  symmetric Wald bounds. `.profile_ci_N()` in `R/cpue_population_estimation.R`.
+- [x] Reach intervals via **DerSimonian–Laird + Knapp–Hartung–Sidik–Jonkman**
+  random-effects pooling on the log scale — `.hksj_logci()`; new `n_identified`,
+  `weak`, and `p_min` (default `0.4`) columns. Monte-Carlo reach-mean coverage
+  ~0.92–0.96 at capture probability ≥ 0.45.
+- [x] Squash-merged to `main` (`2eb271d`); **CI green on all 5 platforms**
+  (macOS/Windows/Ubuntu × R release/devel/oldrel-1) — the earlier red CI was a
+  transient GitHub Actions billing block, not the code.
+
+### v0.2.0 release
+- [x] Bump `DESCRIPTION` to `0.2.0`; promote NEWS "development version" → `0.2.0`.
+- [x] Reconcile the conflicting roxygen version fields — both now `7.3.2`.
+  (Machine has roxygen 8.0.0; repo pins 7.3.2 and man pages are hand-edited, not
+  regenerated, to avoid whole-tree churn.)
+- [x] CRAN ruled **out of scope** (2026-07-04) — GitHub/`pak` distribution only;
+  see Release Prep above.
+- [ ] **Deferred — refresh `renv.lock`.** Still pins `tritonIngest 0.3.1`, but
+  `DESCRIPTION` requires `>= 0.4.0` (Remotes `@v0.4.2`, SHA `7cc669c`). Harmless
+  today — CI installs from `DESCRIPTION`, not the lock — and the renv library is
+  not materialized here, so a correct refresh needs `renv::restore()` +
+  install `tritonIngest@v0.4.2` + `renv::snapshot()` rather than a hand-edit that
+  could mis-transcribe the dependency's metadata. Revisit when next touching renv.
+- [ ] Tag `v0.2.0` and merge the release PR (pending review + green CI).
+
+---
+
 ## Notes
 
 - Validation module is fully tested (42 tests, all passing clean).
@@ -88,9 +129,15 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 - Phase 2 complete: `R/cpue_analysis.R` exports `build_pass_matrix()` and `analyze_cpue()`. Output is one tidy row per reach × date × species with depletion estimates, length/areal density, and effort-standardized CPUE.
 - Design decision honored: both `density_per_m` and `density_per_m2` always present (NA where area metadata absent), keeping the output rectangular.
 - Phase 3 complete: `R/cpue_summary.R` exports `summarize_cpue()`. Bundled `example_catch`/`example_reach` datasets documented in `R/data.R`. Vignette source in `vignettes/electrocpue.Rmd`.
-- Full suite: 198 tests, FAIL 0 / WARN 0 / SKIP 0.
+- Full suite (v0.2.0): 245 tests, FAIL 0 / WARN 0 / SKIP 3 (the 3 skips are the
+  `FSA::removal()` reference cross-checks; FSA is a Suggests-only test dependency
+  and is absent locally — expected, not a regression). Was 198/0/0 at 0.1.0.
 - **Pandoc caveat:** not installed in this environment, so the vignette can't render to HTML here and local `R CMD check` runs with `vignettes = FALSE`. Confirm vignette rendering on a pandoc-equipped machine before release.
 - Version bumped to **0.1.0**; maintainer email fixed (`shepherd70@gmail.com`); NEWS.md rewritten; README is now a real quick-start.
 - **Remaining before tagging v0.1.0:** (1) measure coverage once `covr` available; (2) confirm full check incl. vignette on pandoc-equipped CI (Windows + macOS); (3) optional `cran-comments.md` / `CONTRIBUTING.md`; (4) commit + tag `v0.1.0`.
 - `README.Rmd` has been rewritten as a real quick-start (description, badges, three verified worked examples) and matches the rendered `README.md`.
 - **tritonIngest version alignment:** electrocpue now pins `tritonIngest (>= 0.4.0)` (Remotes `@v0.4.2`), matching `tritonmr`, so the two consumers build against one shared kernel version. (Bumped from the earlier `>= 0.3.1` pin; resolves the version-divergence decision noted during the renv/tracker pass.)
+- **v0.2.0 (2026-07-04):** shipped the profile-likelihood CI rebuild (PR #9) and
+  the 2026-06 audit remediation (PR #8). `DESCRIPTION` at `0.2.0`; NEWS promoted;
+  roxygen fields reconciled to `7.3.2`. CRAN ruled out (GitHub/`pak` only). The
+  `renv.lock` tritonIngest refresh stays deferred — see Milestone 5.
