@@ -1,4 +1,4 @@
-# electrocpue (development version)
+# electrocpue 0.2.0
 
 ## Confidence intervals rebuilt (profile-likelihood + random-effects pooling)
 
