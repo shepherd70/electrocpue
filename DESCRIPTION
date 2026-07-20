@@ -16,10 +16,14 @@ Roxygen: list(markdown = TRUE)
 URL: https://github.com/shepherd70/electrocpue
 BugReports: https://github.com/shepherd70/electrocpue/issues
 Suggests:
+    DT,
     FSA,
+    bslib,
     ggplot2,
     knitr,
     rmarkdown,
+    shiny,
+    shinycssloaders,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3
