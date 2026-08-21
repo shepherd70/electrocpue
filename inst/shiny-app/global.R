@@ -5,7 +5,7 @@
 # Description:  Shared setup for the bundled Shiny app: project ggplot theme,
 #               table/plot helpers, and small utilities. Sourced by app.R
 #               before the UI/server are defined.
-# Dependencies: ggplot2, dplyr; shinycssloaders (optional, for spinners).
+# Dependencies: ggplot2, dplyr, tibble; shinycssloaders (optional, for spinners).
 # ============================================================================
 
 TRITON_NAVY  <- "#1B3D5A"   # primary brand colour, matches sibling apps
@@ -125,9 +125,15 @@ plot_density <- function(summ) {
 }
 
 # Mean catch-per-unit-effort by reach, dodged by species.
-plot_cpue <- function(summ) {
+plot_cpue <- function(summ, effort_basis = c("seconds", "amp_seconds")) {
+  effort_basis <- match.arg(effort_basis)
   if (is.null(summ) || nrow(summ) == 0) {
     return(empty_plot("No summary to plot."))
+  }
+  effort_unit <- if (effort_basis == "amp_seconds") {
+    "amp-second"
+  } else {
+    "effort-second"
   }
   ggplot2::ggplot(summ, ggplot2::aes(x = .data$reach_id, y = .data$cpue_mean,
                                      fill = .data$species)) +
@@ -135,7 +141,8 @@ plot_cpue <- function(summ) {
                       width = 0.6) +
     ggplot2::scale_fill_viridis_d(option = "D", end = 0.85) +
     ggplot2::labs(
-      x = "Reach", y = "Mean CPUE (catch / effort-second)", fill = "Species",
+      x = "Reach", y = paste0("Mean CPUE (catch / ", effort_unit, ")"),
+      fill = "Species",
       title = "Catch-per-unit-effort by reach") +
     theme_electrocpue()
 }

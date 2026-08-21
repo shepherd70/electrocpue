@@ -80,6 +80,95 @@ test_that("carle_strub also reports zero catch as N = 0", {
   expect_identical(out$note, "zero_catch")
 })
 
+test_that("profile interval includes a p = 1 boundary estimate", {
+  for (estimator in list(zippin_estimate, carle_strub_estimate)) {
+    for (counts in list(c(26, 0), c(26, 0, 0), c(26, 0, 0, 0))) {
+      out <- estimator(counts, quiet = TRUE)
+      expect_equal(out$p, 1)
+      expect_equal(out$N, 26)
+      expect_equal(out$N_lwr, 26)
+      expect_lte(out$N_lwr, out$N)
+      expect_gte(out$N_upr, out$N)
+    }
+  }
+})
+
+test_that("profile intervals contain converged estimates across a grid", {
+  cases <- unlist(lapply(2:40, function(first) {
+    lapply(0:min(first - 1L, 12L), function(later) c(first, later))
+  }), recursive = FALSE)
+
+  estimators <- list(zippin = zippin_estimate, carle_strub = carle_strub_estimate)
+  for (estimator_name in names(estimators)) {
+    for (counts in cases) {
+      out <- estimators[[estimator_name]](counts, quiet = TRUE)
+      if (isTRUE(out$converged)) {
+        case_info <- paste(estimator_name, "counts =",
+                           paste(counts, collapse = ","))
+        expect_true(out$N_lwr <= out$N, info = case_info)
+        expect_true(out$N_upr >= out$N, info = case_info)
+      }
+    }
+  }
+})
+
+test_that("constant-memory profile search matches exhaustive integer search", {
+  exhaustive_profile <- function(counts, level = 0.95, cap_mult = 50) {
+    k <- length(counts)
+    total <- sum(counts)
+    removed <- c(0, cumsum(counts)[-k])
+    weighted_removed <- sum(removed)
+    cap <- floor(max(total * cap_mult, total + 300))
+    candidates <- seq.int(total, cap)
+    denom <- k * candidates - weighted_removed
+    ok <- denom >= total
+
+    term <- rowSums(vapply(
+      seq_len(k),
+      function(i) {
+        lgamma(candidates - removed[i] + 1) -
+          lgamma(candidates - removed[i] - counts[i] + 1)
+      },
+      numeric(length(candidates))
+    ))
+    ll <- rep(-Inf, length(candidates))
+    boundary <- ok & denom == total
+    interior <- ok & denom > total
+    ll[boundary] <- term[boundary]
+    phat <- total / denom[interior]
+    ll[interior] <- term[interior] + total * log(phat) +
+      (denom[interior] - total) * log1p(-phat)
+
+    accepted <- 2 * (max(ll) - ll) <= stats::qchisq(level, 1)
+    upper <- max(candidates[accepted])
+    list(
+      lwr = min(candidates[accepted]),
+      upr = upper,
+      identifiable = upper < cap
+    )
+  }
+
+  cases <- list(
+    c(26, 0), c(45, 18, 7), c(38, 26, 12), c(8, 8),
+    c(7, 5, 4, 3), c(100, 40, 15, 5), c(3, 2, 1)
+  )
+  for (counts in cases) {
+    expect_equal(
+      electrocpue:::.profile_ci_N(counts),
+      exhaustive_profile(counts),
+      info = paste("counts =", paste(counts, collapse = ","))
+    )
+  }
+})
+
+test_that("profile search handles very large catches without a candidate grid", {
+  interval <- electrocpue:::.profile_ci_N(c(10000000, 0))
+
+  expect_identical(interval$lwr, 10000000)
+  expect_gte(interval$upr, interval$lwr)
+  expect_true(interval$identifiable)
+})
+
 # ---- Edge case: Zippin model failure -----------------------------------------
 
 test_that("increasing catch triggers Zippin model failure -> NA + warning", {
@@ -218,6 +307,11 @@ test_that("NA counts abort", {
   expect_error(zippin_estimate(c(10, NA, 3)), class = "cpue_estimation_error")
 })
 
+test_that("non-finite counts abort", {
+  expect_error(zippin_estimate(c(10, Inf, 3)), class = "cpue_estimation_error")
+  expect_error(carle_strub_estimate(c(10, -Inf, 3)), class = "cpue_estimation_error")
+})
+
 test_that("negative counts abort", {
   expect_error(zippin_estimate(c(10, -2, 1)), class = "cpue_estimation_error")
 })
@@ -235,6 +329,20 @@ test_that("non-positive Carle & Strub priors abort", {
                class = "cpue_estimation_error")
   expect_error(carle_strub_estimate(c(10, 5, 2), beta = -1),
                class = "cpue_estimation_error")
+})
+
+test_that("Carle & Strub priors must be finite numeric scalars", {
+  bad_priors <- list(NA_real_, Inf, numeric(0), c(1, 2), "1")
+  for (prior in bad_priors) {
+    expect_error(
+      carle_strub_estimate(c(10, 5, 2), alpha = prior),
+      class = "cpue_estimation_error"
+    )
+    expect_error(
+      carle_strub_estimate(c(10, 5, 2), beta = prior),
+      class = "cpue_estimation_error"
+    )
+  }
 })
 
 # ---- Determinism / sanity ----------------------------------------------------

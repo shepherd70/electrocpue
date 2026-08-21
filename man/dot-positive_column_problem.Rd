@@ -25,7 +25,7 @@ Shared by the positivity checks (\code{\link[=check_effort_positive]{check_effor
 problem here: its wrong type is already reported by the kernel type
 check, and comparing it would otherwise misbehave or abort the battery
 mid-run (e.g. \code{factor <= 0} is all-\code{NA}, so a downstream
-\code{if (bad_n > 0)} would error with "missing value where TRUE/FALSE
+\verb{if (bad_n > 0)} would error with "missing value where TRUE/FALSE
 needed" before \code{\link[=validate_cpue_input]{validate_cpue_input()}} could collate and abort once).
 }
 \keyword{internal}

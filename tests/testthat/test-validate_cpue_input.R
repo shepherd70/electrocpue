@@ -67,6 +67,17 @@ test_that("all failures are reported in a single error, not one at a time", {
   expect_gt(length(err$failures), 1)
 })
 
+test_that("empty input tables are reported explicitly", {
+  empty_catch <- make_catch()[0, , drop = FALSE]
+  empty_meta <- make_meta()[0, , drop = FALSE]
+
+  catch_err <- catch_cpue_error(empty_catch, make_meta(), strict = FALSE)
+  meta_err <- catch_cpue_error(make_catch(), empty_meta, strict = FALSE)
+
+  expect_true(any(grepl("catch_data contains no rows", catch_err$failures)))
+  expect_true(any(grepl("reach_metadata contains no rows", meta_err$failures)))
+})
+
 # ---- Required columns --------------------------------------------------------
 
 test_that("missing required catch column is reported", {
@@ -249,6 +260,13 @@ test_that("NA effort is reported via effort check", {
   expect_true(any(grepl("effort_seconds", err$failures)))
 })
 
+test_that("infinite effort is reported", {
+  catch <- make_catch()
+  catch$effort_seconds[1] <- Inf
+  err <- catch_cpue_error(catch, make_meta(), strict = FALSE)
+  expect_true(any(grepl("effort_seconds.*non-finite", err$failures)))
+})
+
 # ---- Counts non-negative integer --------------------------------------------
 
 test_that("negative count is reported", {
@@ -272,6 +290,14 @@ test_that("zero count is valid", {
 })
 
 # ---- Reach ID consistency ---------------------------------------------------
+
+test_that("duplicate reach metadata ids are reported", {
+  meta <- rbind(make_meta(), make_meta()[1, , drop = FALSE])
+  err <- catch_cpue_error(make_catch(), meta, strict = FALSE)
+
+  expect_true(any(grepl("must be unique", err$failures)))
+  expect_true(any(grepl("R1", err$failures)))
+})
 
 test_that("catch reach_id absent from metadata is reported", {
   catch <- make_catch()
@@ -305,6 +331,16 @@ test_that("a non-positive length_m IS reported for a reach that was sampled", {
   meta$length_m[meta$reach_id == "R1"] <- 0   # R1 is sampled in make_catch()
   err <- catch_cpue_error(make_catch(), meta, strict = FALSE)
   expect_true(any(grepl("length_m", err$failures)))
+})
+
+test_that("non-finite sampled reach extents are reported", {
+  meta <- make_meta()
+  meta$length_m[1] <- Inf
+  meta$area_m2 <- c(NaN, 1200)
+  err <- catch_cpue_error(make_catch(), meta, strict = FALSE)
+
+  expect_true(any(grepl("length_m.*non-finite", err$failures)))
+  expect_true(any(grepl("area_m2.*non-finite", err$failures)))
 })
 
 test_that("within-pass effort_seconds disagreement is reported", {

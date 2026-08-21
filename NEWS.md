@@ -1,5 +1,40 @@
 # electrocpue (development version)
 
+## Statistical interval corrections
+
+* Profile-likelihood abundance intervals now evaluate the legitimate
+  `p = 1` boundary correctly, so a high-capture estimate such as `N = catch`
+  is contained in its own interval.
+* Reach density pooling now uses modified Knapp-Hartung inference, including
+  the conservative `q >= 1` safeguard and a half-fish continuity width for a
+  discrete singleton profile interval. This prevents identical surveys from
+  erasing measurement uncertainty and prevents zero-width inputs from
+  producing `NaN` limits. The former factor-20 interval-width cap was removed.
+* `density_per_m_mean` and `density_per_m2_mean` now report the same
+  back-transformed random-effects geometric mean targeted by their log-scale
+  intervals. `N_mean` remains the descriptive arithmetic abundance mean.
+* Profile-likelihood abundance intervals now use constant-memory integer
+  binary searches. Results match the former exhaustive candidate grid, while
+  large valid catches no longer allocate vectors and matrices proportional to
+  `50 * catch_total`.
+
+## Audit hardening
+
+* Validation now rejects empty input tables, duplicate
+  `reach_metadata$reach_id` keys, and non-finite effort or sampled reach
+  extents. The analysis join also guards metadata uniqueness when callers
+  explicitly skip validation, preventing duplicated reach rows from silently
+  reweighting summaries.
+* Removal counts, Carle-Strub priors, summary confidence levels, capture
+  thresholds, and the analysis validation flag now reject malformed or
+  non-finite values with package-classed errors.
+* The Shiny app's CPUE plot now labels amp-second analyses correctly. Uploaded
+  CSV/TSV parsing, helper plots, and the complete example-data server reactive
+  path are covered by tests.
+* `htmltools` and `tibble`, which the Shiny app calls directly, are now declared
+  and checked as app dependencies. The minimum R version is now 4.2 because
+  the locked `tritonIngest` dependency requires it.
+
 ## Standalone Shiny front-end
 
 * **`run_app()` launches a bundled Shiny application** — a standalone
@@ -9,8 +44,9 @@
   per-survey abundance with profile-likelihood intervals, pooled reach
   density and CPUE, and figures with confidence intervals. The confidence
   level and `p_min` sliders recompute the summary and plots live. The app
-  lives under `inst/shiny-app`; its packages (shiny, bslib, DT, ggplot2)
-  are `Suggests`, so the estimation core stays dependency-light.
+  lives under `inst/shiny-app`; its packages (shiny, bslib, DT, ggplot2,
+  htmltools, tibble) are `Suggests`, so the estimation core stays
+  dependency-light.
 
 # electrocpue 0.2.0
 

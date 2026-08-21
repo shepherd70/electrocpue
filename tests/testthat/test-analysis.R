@@ -59,6 +59,13 @@ test_that("duplicate species x pass rows are summed", {
   expect_identical(rbt[1], 25)  # 20 + 5
 })
 
+test_that("an empty catch table cannot be reshaped", {
+  expect_error(
+    build_pass_matrix(make_catch()[0, , drop = FALSE]),
+    class = "cpue_analysis_error"
+  )
+})
+
 # ---- analyze_cpue: structure -------------------------------------------------
 
 test_that("analyze_cpue returns one tidy row per series with documented columns", {
@@ -150,6 +157,16 @@ test_that("amp_seconds basis rejects a non-positive amperage", {
   )
 })
 
+test_that("amp_seconds basis rejects infinite amperage", {
+  catch <- make_catch()
+  catch$amperage <- 4
+  catch$amperage[2] <- Inf
+  expect_error(
+    analyze_cpue(catch, make_meta(), effort_basis = "amp_seconds", validate = FALSE),
+    class = "cpue_analysis_error"
+  )
+})
+
 # ---- analyze_cpue: method + validation wiring --------------------------------
 
 test_that("method argument is passed through to the estimator", {
@@ -173,6 +190,23 @@ test_that("validate = FALSE skips validation", {
   expect_no_error(suppressWarnings(
     analyze_cpue(catch, make_meta(), validate = FALSE)
   ))
+})
+
+test_that("validate must be one non-missing logical value", {
+  for (value in list(NA, c(TRUE, FALSE), 1, NULL)) {
+    expect_error(
+      analyze_cpue(make_catch(), make_meta(), validate = value),
+      class = "cpue_analysis_error"
+    )
+  }
+})
+
+test_that("duplicate metadata cannot multiply rows when validation is skipped", {
+  meta <- rbind(make_meta(), make_meta()[1, , drop = FALSE])
+  expect_error(
+    analyze_cpue(make_catch(), meta, validate = FALSE),
+    class = "cpue_analysis_error"
+  )
 })
 
 test_that("non-converging series produce a single aggregated warning", {

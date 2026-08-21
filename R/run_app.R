@@ -6,7 +6,7 @@
 # Logic:        Resolves the app directory via system.file() so the app
 #               travels with the installed package; guards the Suggested
 #               UI packages so a missing one fails early with a clear message.
-# Dependencies: shiny, bslib, DT, ggplot2 (all Suggests).
+# Dependencies: shiny, bslib, DT, ggplot2, htmltools, tibble (all Suggests).
 # ============================================================================
 
 #' Launch the electrocpue Shiny application
@@ -19,10 +19,10 @@
 #'
 #' @details
 #' The front-end lives under `inst/shiny-app` and depends on the
-#' \pkg{shiny}, \pkg{bslib}, \pkg{DT}, and \pkg{ggplot2} packages, which are
-#' listed under `Suggests`. Install any that are missing before calling this
-#' function. Loading spinners are shown when \pkg{shinycssloaders} is also
-#' installed, but it is optional.
+#' \pkg{shiny}, \pkg{bslib}, \pkg{DT}, \pkg{ggplot2}, \pkg{htmltools}, and
+#' \pkg{tibble} packages, which are listed under `Suggests`. Install any that
+#' are missing before calling this function. Loading spinners are shown when
+#' \pkg{shinycssloaders} is also installed, but it is optional.
 #'
 #' @param ... Additional arguments passed to [shiny::runApp()], for example
 #'   `port` or `launch.browser`.
@@ -37,7 +37,7 @@
 #'
 #' @export
 run_app <- function(...) {
-  needed  <- c("shiny", "bslib", "DT", "ggplot2")
+  needed  <- c("shiny", "bslib", "DT", "ggplot2", "htmltools", "tibble")
   missing <- needed[!vapply(needed, requireNamespace, logical(1),
                             quietly = TRUE)]
   if (length(missing) > 0) {

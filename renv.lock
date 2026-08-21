@@ -1208,7 +1208,7 @@
     },
     "tritonIngest": {
       "Package": "tritonIngest",
-      "Version": "0.3.1",
+      "Version": "0.4.2",
       "Source": "GitHub",
       "Title": "Tabular Data Ingestion Toolkit",
       "Authors@R": "person(\"Travis\", \"Shepherd\", email = \"travis.shepherd@tritonenv.com\", role = c(\"aut\", \"cre\"))",
@@ -1225,8 +1225,11 @@
         "purrr",
         "readr",
         "readxl",
+        "stats",
         "tibble",
-        "tidyr"
+        "tidyr",
+        "tools",
+        "utils"
       ],
       "Suggests": [
         "arrow",
@@ -1234,14 +1237,12 @@
       ],
       "Config/testthat/edition": "3",
       "Config/roxygen2/version": "8.0.0",
-      "Author": "Travis Shepherd [aut, cre]",
-      "Maintainer": "Travis Shepherd <travis.shepherd@tritonenv.com>",
       "RemoteType": "github",
       "RemoteHost": "api.github.com",
       "RemoteUsername": "shepherd70",
       "RemoteRepo": "tritonIngest",
-      "RemoteRef": "v0.3.1",
-      "RemoteSha": "30d4a1150f145adace137aae29f63e2f275abf6d"
+      "RemoteRef": "v0.4.2",
+      "RemoteSha": "01abab8ce1445be69f20f4dc38872e51baf76bf6"
     },
     "tzdb": {
       "Package": "tzdb",

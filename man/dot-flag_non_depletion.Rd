@@ -28,7 +28,8 @@ trustworthy, so it is returned with \code{note = "assumption_violated"} (and
 an advisory warning) rather than \code{"ok"}. The test spans every pass, not
 just the endpoints, so an interior pass that spikes above the first
 pass is caught too.
-
+}
+\details{
 Applied identically by \code{\link[=zippin_estimate]{zippin_estimate()}} and \code{\link[=carle_strub_estimate]{carle_strub_estimate()}}
 on their converged paths, so the flag does not depend on which estimator
 produced the number -- in particular \code{method = "auto"} flags a

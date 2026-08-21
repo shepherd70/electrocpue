@@ -8,7 +8,7 @@
 # Logic:        Controls live in the sidebar; a "Run analysis" button drives
 #               analyze_cpue(); the reach summary and figures recompute live
 #               as the confidence level / p_min sliders move.
-# Dependencies: shiny, bslib, ggplot2, DT, electrocpue (the package itself).
+# Dependencies: shiny, bslib, ggplot2, DT, htmltools, tibble, electrocpue.
 # ============================================================================
 
 library(shiny)
@@ -17,7 +17,7 @@ library(ggplot2)
 library(DT)
 library(electrocpue)
 
-source("global.R")
+source("global.R", local = TRUE)
 
 # ---- UI --------------------------------------------------------------------
 ui <- bslib::page_sidebar(
@@ -142,8 +142,8 @@ ui <- bslib::page_sidebar(
             "with a profile-likelihood interval that respects N ≥ catch and",
             "an 'identifiable' flag when the data cannot bound N from above."),
           shiny::tags$li(shiny::strong("Summarize:"),
-            "repeat surveys are pooled to a reach × species mean with a",
-            "random-effects (DerSimonian-Laird / Knapp-Hartung) interval.",
+            "repeat surveys are pooled to a reach × species geometric mean",
+            "with a modified Knapp-Hartung random-effects interval.",
             "Groups resting on weak data are flagged, not faked.")),
         shiny::p(shiny::em(
           "Point estimates and standard errors match FSA::removal().")),
@@ -287,7 +287,17 @@ server <- function(input, output, session) {
     s <- summary_r(); need_analysis(s); plot_density(s)
   })
   output$cpue_plot <- shiny::renderPlot({
-    s <- summary_r(); need_analysis(s); plot_cpue(s)
+    s <- summary_r()
+    res <- analysis_r()
+    need_analysis(s)
+    need_analysis(res)
+    effort_basis <- unique(res$effort_basis)
+    shiny::validate(shiny::need(
+      length(effort_basis) == 1L &&
+        effort_basis %in% c("seconds", "amp_seconds"),
+      "Analysis returned an unknown effort basis."
+    ))
+    plot_cpue(s, effort_basis = effort_basis)
   })
 
   # -- Example-data template downloads ---------------------------------------

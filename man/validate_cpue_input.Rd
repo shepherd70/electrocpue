@@ -32,6 +32,12 @@ reach metadata tables. Every check runs regardless of earlier
 failures, so the returned error lists every problem at once rather
 than surfacing them one at a time.
 }
+\details{
+Both tables must contain at least one row, and \code{reach_metadata} must contain
+exactly one row per \code{reach_id}. Effort and sampled reach extents used as
+denominators must be finite and positive; \code{area_m2} may be \code{NA} when it is
+unavailable.
+}
 \examples{
 \dontrun{
 validate_cpue_input(catch_data, reach_metadata)

@@ -43,8 +43,10 @@ falls back to Carle & Strub when the Zippin model fails.
 
 ``` r
 estimate_population(c(45, 18, 7))
-#>   method n_passes catch_total  N     N_se         p       p_se converged note
-#> 1 zippin        3          70 74 3.236594 0.6140351 0.06958281      TRUE   ok
+#>   method n_passes catch_total  N     N_se N_lwr N_upr         p       p_se
+#> 1 zippin        3          70 74 3.236594    70    83 0.6140351 0.06958281
+#>   converged identifiable note
+#> 1      TRUE         TRUE   ok
 ```
 
 ### Analyze a whole dataset
@@ -70,7 +72,8 @@ head(res[, c("reach_id", "date", "species", "N", "N_se", "density_per_m", "cpue"
 ### Summarize repeat surveys
 
 `summarize_cpue()` rolls repeat survey dates up to a reach × species
-summary with confidence intervals on density.
+summary. Density is reported as a random-effects pooled geometric mean
+with a modified Knapp-Hartung confidence interval.
 
 ``` r
 summarize_cpue(res)[, c("reach_id", "species", "n_surveys", "N_mean",
@@ -79,14 +82,14 @@ summarize_cpue(res)[, c("reach_id", "species", "n_surveys", "N_mean",
 #> # A tibble: 8 × 7
 #>   reach_id species n_surveys N_mean density_per_m_mean density_per_m_lwr
 #>   <chr>    <chr>       <int>  <dbl>              <dbl>             <dbl>
-#> 1 R01      BNT             2  150                1.25             0.0853
-#> 2 R01      RBT             2   64.5              0.538            0
-#> 3 R02      BNT             2   88                0.926            0
-#> 4 R02      RBT             2  126.               1.32             0.452
-#> 5 R03      BNT             2  200                1.33             0.486
-#> 6 R03      RBT             2   48.5              0.323            0.196
-#> 7 R04      BNT             2   60                0.75             0
-#> 8 R04      RBT             2   97                1.21             0
+#> 1 R01      BNT             2  150                1.23             0.491
+#> 2 R01      RBT             2   64.5              0.533            0.148
+#> 3 R02      BNT             2   88                0.919            0.271
+#> 4 R02      RBT             2  126.               1.31             0.460
+#> 5 R03      BNT             2  200                1.36             0.692
+#> 6 R03      RBT             2   48.5              0.320            0.221
+#> 7 R04      BNT             2   60                0.748            0.259
+#> 8 R04      RBT             2   97                1.16             0.0826
 #> # ℹ 1 more variable: density_per_m_upr <dbl>
 ```
 

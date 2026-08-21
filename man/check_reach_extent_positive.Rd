@@ -23,7 +23,8 @@ length otherwise passes type-checking and silently yields an
 \code{Inf}/\code{NaN}/negative density downstream. \code{area_m2} is optional, so an
 absent or \code{NA} value is allowed (it simply yields an \code{NA} areal
 density), but where a value is present it must likewise be positive.
-
+}
+\details{
 Only the reaches \code{catch_data} actually references are checked: a master
 reach inventory may legitimately carry placeholder extents for reaches
 not sampled this season, and those rows are dropped by the downstream

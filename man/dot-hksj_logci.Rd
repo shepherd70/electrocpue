@@ -4,7 +4,7 @@
 \alias{.hksj_logci}
 \title{Reach density interval by random-effects pooling on the log scale}
 \usage{
-.hksj_logci(d, dl, du, level = 0.95)
+.hksj_logci(d, dl, du, level = 0.95, resolution = NULL, profile_level = 0.95)
 }
 \arguments{
 \item{d}{Per-survey density point estimates (well-identified surveys).}
@@ -13,6 +13,14 @@
 \code{d}.}
 
 \item{level}{Confidence level.}
+
+\item{resolution}{Smallest density increment for each survey (one fish
+divided by reach length or area). Used only to give a zero-width discrete
+profile interval a half-unit continuity width. When \code{NULL}, a numerical
+fallback is used.}
+
+\item{profile_level}{Confidence level of the supplied per-survey profile
+limits. \code{\link[=analyze_cpue]{analyze_cpue()}} currently supplies 95 percent limits.}
 }
 \value{
 Named numeric vector \code{c(mean, lwr, upr, n)}; all \code{NA} (with
@@ -22,12 +30,17 @@ Named numeric vector \code{c(mean, lwr, upr, n)}; all \code{NA} (with
 Pools the well-identified surveys in a group into a reach-level density
 interval. It works on the log scale, so the interval stays positive and
 matches the right-skew of removal estimates, and it combines each
-survey's profile-likelihood uncertainty (\code{v_i}, from its
-\code{N_lwr}/\code{N_upr}) with the between-survey (temporal) variation by
-DerSimonian-Laird random effects. The Knapp-Hartung-Sidik-Jonkman variance
-and a Student-t critical value keep coverage near nominal at the very
-small number of surveys typical of a monitoring season (simulation: about
-0.92-0.95 at two visits). The multiplicative half-width is capped at a
-factor of 20 so a single discordant pair cannot produce an unbounded bar.
+survey's profile-likelihood uncertainty (\code{v_i}, from its \code{N_lwr}/\code{N_upr})
+with the between-survey (temporal) variation by DerSimonian-Laird random
+effects. The modified Knapp-Hartung variance uses a Student-t critical value
+and bounds its variance multiplier below by one, so identical point
+estimates retain their within-survey uncertainty. No arbitrary cap is
+applied to the interval width.
+}
+\references{
+Röver, C., Knapp, G. & Friede, T. (2015). Hartung-Knapp-Sidik-Jonkman
+approach and its modification for random-effects meta-analysis with few
+studies. BMC Medical Research Methodology 15:99.
+\doi{10.1186/s12874-015-0091-1}
 }
 \keyword{internal}

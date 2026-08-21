@@ -101,7 +101,7 @@
       carle_strub_estimate(c(5L, 3L), alpha = 0)
     Condition
       Error in `carle_strub_estimate()`:
-      ! `alpha` and `beta` must be positive.
+      ! `alpha` and `beta` must each be one finite positive number.
 
 # estimate_population rejects non-integer counts
 
@@ -142,8 +142,8 @@
       analyze_cpue(catch, snap_meta(), effort_basis = "amp_seconds", validate = FALSE)
     Condition
       Error in `analyze_cpue()`:
-      ! amperage must be numeric, non-"NA", and positive for `effort_basis = "amp_seconds"`.
-      i A missing or non-positive amperage gives an undefined amp-second effort.
+      ! amperage must be numeric, finite, and positive for `effort_basis = "amp_seconds"`.
+      i A missing, infinite, or non-positive amperage gives an undefined amp-second effort.
 
 # analyze_cpue warns when some series do not converge
 

@@ -62,6 +62,12 @@ build_pass_matrix <- function(catch_data) {
       class = "cpue_analysis_error"
     )
   }
+  if (nrow(catch_data) == 0) {
+    cli::cli_abort(
+      "{.arg catch_data} contains no rows to reshape.",
+      class = "cpue_analysis_error"
+    )
+  }
 
   # Collapse any duplicate species x pass rows by summing counts.
   catch_agg <- catch_data |>
@@ -117,7 +123,7 @@ build_pass_matrix <- function(catch_data) {
 #' @param effort_basis Denominator for the effort-standardized catch
 #'   rate: `"seconds"` (default) or `"amp_seconds"`. The latter requires
 #'   an `amperage` column in `catch_data` whose values are all present
-#'   (non-`NA`) and positive.
+#'   (non-`NA`), finite, and positive.
 #' @param alpha,beta Carle & Strub prior parameters (see
 #'   [estimate_population()]).
 #' @param validate Logical. If `TRUE` (default), run
@@ -156,8 +162,26 @@ analyze_cpue <- function(catch_data, reach_metadata,
   method       <- match.arg(method)
   effort_basis <- match.arg(effort_basis)
 
-  if (isTRUE(validate)) {
+  if (!is.logical(validate) || length(validate) != 1L || is.na(validate)) {
+    cli::cli_abort(
+      "{.arg validate} must be a single non-missing logical value.",
+      class = "cpue_analysis_error"
+    )
+  }
+
+  if (validate) {
     validate_cpue_input(catch_data, reach_metadata, strict = FALSE)
+  }
+
+  # This is a cardinality invariant, not merely an optional validation
+  # convenience. Allowing duplicate metadata keys through a skipped validator
+  # would multiply result rows at the join and silently reweight summaries.
+  if ("reach_id" %in% names(reach_metadata) &&
+      anyDuplicated(reach_metadata$reach_id)) {
+    cli::cli_abort(
+      "{.arg reach_metadata} must contain exactly one row per {.field reach_id}.",
+      class = "cpue_analysis_error"
+    )
   }
 
   has_amp  <- "amperage" %in% names(catch_data)
@@ -177,11 +201,11 @@ analyze_cpue <- function(catch_data, reach_metadata,
   # rather than propagating the problem into the output.
   if (effort_basis == "amp_seconds" &&
       (!is.numeric(catch_data$amperage) ||
-       anyNA(catch_data$amperage) ||
+       any(!is.finite(catch_data$amperage)) ||
        any(catch_data$amperage <= 0))) {
     cli::cli_abort(
-      c("{.field amperage} must be numeric, non-{.val NA}, and positive for {.code effort_basis = \"amp_seconds\"}.",
-        "i" = "A missing or non-positive amperage gives an undefined amp-second effort."),
+      c("{.field amperage} must be numeric, finite, and positive for {.code effort_basis = \"amp_seconds\"}.",
+        "i" = "A missing, infinite, or non-positive amperage gives an undefined amp-second effort."),
       class = "cpue_analysis_error"
     )
   }

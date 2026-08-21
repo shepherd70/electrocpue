@@ -28,24 +28,24 @@ present.}
 \item{effort_basis}{Denominator for the effort-standardized catch
 rate: \code{"seconds"} (default) or \code{"amp_seconds"}. The latter requires
 an \code{amperage} column in \code{catch_data} whose values are all present
-(non-\code{NA}) and positive.}
+(non-\code{NA}), finite, and positive.}
 
 \item{alpha, beta}{Carle & Strub prior parameters (see
 \code{\link[=estimate_population]{estimate_population()}}).}
 
 \item{validate}{Logical. If \code{TRUE} (default), run
 \code{\link[=validate_cpue_input]{validate_cpue_input()}} first. Set \code{FALSE} only when inputs are
-already known to be valid: validation also guards structural assumptions
-the pipeline relies on -- notably pass numbers being contiguous from 1 --
-and skipping it on, say, non-contiguous passes (1, 2, 4) lets them
-collapse into a silently wrong depletion series.}
+already known to be valid: validation also guards structural
+assumptions the pipeline relies on -- notably pass numbers being
+contiguous from 1 -- and skipping it on, say, non-contiguous passes
+(1, 2, 4) lets them collapse into a silently wrong depletion series.}
 }
 \value{
 A data frame with one row per \code{reach_id} x \code{date} x \code{species}
 and columns: keys (\code{reach_id}, \code{date}, \code{species}); estimation
-(\code{method}, \code{n_passes}, \code{catch_total}, \code{N}, \code{N_se}, \code{N_lwr},
-\code{N_upr}, \code{p}, \code{p_se}, \code{converged}, \code{identifiable}, \code{note});
-reach extent (\code{length_m}, \code{area_m2}); effort
+(\code{method}, \code{n_passes}, \code{catch_total}, \code{N}, \code{N_se}, \code{N_lwr}, \code{N_upr},
+\code{p}, \code{p_se}, \code{converged}, \code{identifiable}, \code{note}); reach extent
+(\code{length_m}, \code{area_m2}); effort
 (\code{effort_seconds}, \code{effort_amp_seconds}, \code{effort_basis}, \code{cpue});
 and density (\code{density_per_m}, \code{density_per_m2}). \code{area_m2}-dependent
 columns are \code{NA} when areal metadata is absent.
