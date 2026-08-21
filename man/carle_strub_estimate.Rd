@@ -8,10 +8,11 @@ carle_strub_estimate(counts, alpha = 1, beta = 1, quiet = FALSE)
 }
 \arguments{
 \item{counts}{Numeric vector of catches per pass, ordered pass 1, 2,
-..., k. Must be non-negative integers with no \code{NA}.}
+..., k. Must be finite, non-negative integers with no \code{NA}.}
 
 \item{alpha, beta}{Prior parameters for the Carle & Strub estimator.
-Both default to \code{1} (uniform prior), matching the original paper.}
+Each must be one finite positive number. Both default to \code{1} (uniform
+prior), matching the original paper.}
 
 \item{quiet}{Logical. If \code{TRUE}, suppress advisory warnings for
 non-convergent or single-pass series. Useful when estimating many

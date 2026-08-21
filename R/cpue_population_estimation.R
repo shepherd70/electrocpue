@@ -45,11 +45,12 @@
 #' when its model is valid and falls back to Carle & Strub otherwise.
 #'
 #' @param counts Numeric vector of catches per pass, ordered pass 1, 2,
-#'   ..., k. Must be non-negative integers with no `NA`.
+#'   ..., k. Must be finite, non-negative integers with no `NA`.
 #' @param method One of `"auto"` (default), `"zippin"`, or
 #'   `"carle_strub"`.
 #' @param alpha,beta Prior parameters for the Carle & Strub estimator.
-#'   Both default to `1` (uniform prior), matching the original paper.
+#'   Each must be one finite positive number. Both default to `1` (uniform
+#'   prior), matching the original paper.
 #' @param quiet Logical. If `TRUE`, suppress advisory warnings for
 #'   non-convergent or single-pass series. Useful when estimating many
 #'   series in a loop. Defaults to `FALSE`.
@@ -283,9 +284,14 @@ zippin_estimate <- function(counts, quiet = FALSE) {
 carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
 
   .check_counts(counts)
-  if (alpha <= 0 || beta <= 0) {
-    cli::cli_abort("{.arg alpha} and {.arg beta} must be positive.",
-                   class = "cpue_estimation_error")
+  valid_prior <- function(x) {
+    is.numeric(x) && length(x) == 1L && is.finite(x) && x > 0
+  }
+  if (!valid_prior(alpha) || !valid_prior(beta)) {
+    cli::cli_abort(
+      "{.arg alpha} and {.arg beta} must each be one finite positive number.",
+      class = "cpue_estimation_error"
+    )
   }
 
   k <- length(counts)
@@ -372,6 +378,10 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
   }
   if (anyNA(counts)) {
     cli::cli_abort("{.arg counts} must not contain NA.",
+                   class = "cpue_estimation_error")
+  }
+  if (any(!is.finite(counts))) {
+    cli::cli_abort("{.arg counts} must contain only finite values.",
                    class = "cpue_estimation_error")
   }
   if (any(counts < 0)) {
@@ -475,7 +485,10 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
 #' and the right-skew of the estimate, and they widen honestly when
 #' depletion is weak.
 #'
-#' The search runs `N` up to `cap_mult * T`. If the likelihood is still
+#' The search runs `N` up to `cap_mult * T`, using integer binary searches
+#' over the unimodal profile likelihood rather than allocating every
+#' candidate abundance. Its memory use is therefore constant even for very
+#' large catches. If the likelihood is still
 #' admissible at that cap the upper limit is unbounded -- the data cannot
 #' bound abundance from above, which happens at low capture probability --
 #' and `identifiable` is returned `FALSE` so downstream summaries can flag
@@ -495,24 +508,61 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
   T <- sum(counts)
   R <- c(0, cumsum(counts)[-k])              # fish removed before each pass
   X <- sum(R)                                # == sum((k - i) * counts)
-  cap <- max(T * cap_mult, T + 300L)
-  Ns  <- T:cap
-  denom <- k * Ns - X
-  ok    <- denom > T                         # capture probability < 1
-  phat  <- T / denom
+  cap <- floor(max(T * cap_mult, T + 300))
 
-  # Profile log-likelihood over integer N (terms constant in N dropped):
-  # for each pass, log C(N - R_i, c_i) profiled at phat(N).
-  term <- rowSums(vapply(
-    seq_len(k),
-    function(i) lgamma(Ns - R[i] + 1) - lgamma(Ns - R[i] - counts[i] + 1),
-    numeric(length(Ns))
-  ))
-  ll <- term + T * log(phat) + (denom - T) * log1p(-phat)
-  ll[!ok] <- -Inf
+  # Scalar profile log-likelihood (terms constant in N dropped). Keeping this
+  # scalar is important: the former T:cap grid allocated several vectors and
+  # a k-by-length(grid) matrix, so a perfectly valid large catch could exhaust
+  # memory before estimation began.
+  loglik <- function(N) {
+    denom <- k * N - X
+    if (!is.finite(N) || N < T || denom < T) return(-Inf)
 
-  im     <- which.max(ll)
-  inside <- 2 * (ll[im] - ll) <= stats::qchisq(level, 1)
-  hi     <- max(Ns[inside])
-  list(lwr = min(Ns[inside]), upr = hi, identifiable = hi < cap)
+    term <- sum(
+      lgamma(N - R + 1) - lgamma(N - R - counts + 1)
+    )
+
+    # At p = 1, the limiting contribution from uncaptured fish is zero.
+    # Evaluate it directly instead of forming 0 * log(0).
+    if (denom == T) return(term)
+
+    phat <- T / denom
+    term + T * log(phat) + (denom - T) * log1p(-phat)
+  }
+
+  # Locate the first integer mode of the unimodal profile. On a flat pair,
+  # move left to match which.max() on the former exhaustive grid.
+  lo <- T
+  hi <- cap
+  while (lo < hi) {
+    mid <- floor((lo + hi) / 2)
+    if (loglik(mid + 1) > loglik(mid)) lo <- mid + 1 else hi <- mid
+  }
+  mode <- lo
+  cutoff <- loglik(mode) - stats::qchisq(level, 1) / 2
+  inside <- function(N) loglik(N) >= cutoff
+
+  # The likelihood-ratio acceptance set is contiguous around the mode. Find
+  # its first and last integer with two more binary searches.
+  lo <- T
+  hi <- mode
+  while (lo < hi) {
+    mid <- floor((lo + hi) / 2)
+    if (inside(mid)) hi <- mid else lo <- mid + 1
+  }
+  lwr <- lo
+
+  if (inside(cap)) {
+    upr <- cap
+  } else {
+    lo <- mode
+    hi <- cap
+    while (lo < hi) {
+      mid <- ceiling((lo + hi) / 2)
+      if (inside(mid)) lo <- mid else hi <- mid - 1
+    }
+    upr <- lo
+  }
+
+  list(lwr = lwr, upr = upr, identifiable = upr < cap)
 }

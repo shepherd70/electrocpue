@@ -14,13 +14,14 @@ estimate_population(
 }
 \arguments{
 \item{counts}{Numeric vector of catches per pass, ordered pass 1, 2,
-..., k. Must be non-negative integers with no \code{NA}.}
+..., k. Must be finite, non-negative integers with no \code{NA}.}
 
 \item{method}{One of \code{"auto"} (default), \code{"zippin"}, or
 \code{"carle_strub"}.}
 
 \item{alpha, beta}{Prior parameters for the Carle & Strub estimator.
-Both default to \code{1} (uniform prior), matching the original paper.}
+Each must be one finite positive number. Both default to \code{1} (uniform
+prior), matching the original paper.}
 
 \item{quiet}{Logical. If \code{TRUE}, suppress advisory warnings for
 non-convergent or single-pass series. Useful when estimating many
@@ -32,8 +33,8 @@ A one-row data frame with columns: \code{method}, \code{n_passes},
 (profile-likelihood confidence limits for \code{N}; respect \code{N >= T} and
 are asymmetric), \code{p} (per-pass capture probability), \code{p_se},
 \code{converged} (logical), \code{identifiable} (logical; \code{FALSE} when the data
-cannot bound \code{N} from above -- typically low capture probability), and
-\code{note} (one of \code{"ok"}, \code{"single_pass"}, \code{"zero_catch"},
+cannot bound \code{N} from above -- typically low capture probability),
+and \code{note} (one of \code{"ok"}, \code{"single_pass"}, \code{"zero_catch"},
 \code{"model_failure"}, \code{"no_convergence"}, \code{"assumption_violated"}).
 }
 \description{

@@ -13,14 +13,15 @@
 #               abundance bounded above, capture probability >= p_min) are
 #               pooled on the log scale -- each survey's profile-likelihood
 #               interval combined with between-survey variation by
-#               DerSimonian-Laird random effects + Knapp-Hartung variance, a
-#               Student-t critical value, and a x20 half-width cap. Positivity
-#               is intrinsic (no catch floor). A group resting on < 2 well-
-#               identified surveys is flagged weak. Point means (N_mean,
-#               density_*_mean) are simple averages over the converged,
-#               depleting surveys; assumption-violated surveys are counted in
-#               n_assumption_violated; CPUE, model-free, is averaged over every
-#               survey with a finite catch rate.
+#               DerSimonian-Laird random effects + modified Knapp-Hartung
+#               variance and a Student-t critical value. Positivity is
+#               intrinsic (no catch floor). A group resting on < 2 well-
+#               identified surveys is flagged weak. N_mean is a simple
+#               arithmetic average over converged, depleting surveys; each
+#               density_*_mean is the same back-transformed random-effects
+#               geometric mean targeted by its interval. Assumption-violated
+#               surveys are counted in n_assumption_violated; CPUE, model-free,
+#               is averaged over every survey with a finite catch rate.
 # Dependencies: dplyr  - grouped summarise via group_modify
 #               stats  - qnorm, qt
 #               cli    - classed errors
@@ -42,26 +43,55 @@
 #'   `c("reach_id", "species")`.
 #' @param level Confidence level for the density intervals. Defaults to
 #'   `0.95`.
+#' @param p_min Minimum estimated capture probability for a survey to enter
+#'   the pooled density estimate and confidence interval. Surveys below it
+#'   (where the removal estimate is biased) are held out and the reach is
+#'   flagged `weak`. Defaults to `0.4`.
 #'
 #' @return A data frame with one row per group and columns: the grouping
 #'   columns; `n_surveys`, `n_converged`, `prop_converged`,
-#'   `n_assumption_violated`; `catch_total`; `N_mean`; mean and
-#'   lower/upper interval limits for `density_per_m` and `density_per_m2`;
-#'   and `cpue_mean`.
+#'   `n_assumption_violated`, `n_identified` (surveys entering the pooled
+#'   estimate and interval), `weak` (logical; the pooled estimate rests on
+#'   fewer than two well-identified surveys, or omits a survey that fed
+#'   `N_mean`); `catch_total`; `N_mean`; pooled geometric means and lower/upper
+#'   interval limits for `density_per_m` and `density_per_m2`; and `cpue_mean`.
+#'   `N_mean` is the arithmetic mean over converged, depleting surveys. A
+#'   density mean is the back-transformed random-effects estimate over the
+#'   well-identified surveys and therefore has the same estimand and input set
+#'   as its interval. When none qualifies, the density mean falls back to the
+#'   arithmetic mean as a descriptive point value, its interval is `NA`, and
+#'   `weak` is `TRUE`.
 #'
 #' @details
-#' Interval method depends on the number of usable surveys in a group
-#' (converged and not flagged `assumption_violated`). With a single
-#' survey, only the depletion estimate's standard error is available, so a
-#' Wald (normal) interval is used. With two or more surveys, a Student-t
-#' interval on the survey-level densities is used, which reflects total
-#' between-survey variability (biological plus measurement). Lower limits
-#' are truncated at zero.
+#' The estimand for each density column is the random-effects mean log density,
+#' back-transformed to the original scale -- equivalently, a pooled geometric
+#' mean. Each eligible survey contributes its profile-likelihood interval
+#' (`N_lwr`/`N_upr`). For two or more surveys, within-survey uncertainty is
+#' combined with DerSimonian-Laird between-survey variation and a modified
+#' Knapp-Hartung Student-t interval. The modification bounds the Knapp-Hartung
+#' variance multiplier below by one, preventing identical survey estimates
+#' from erasing their nonzero measurement uncertainty. No arbitrary width cap
+#' is applied to the statistical interval.
 #'
-#' With exactly two usable surveys the t-interval has a single degree of
-#' freedom (`t_{0.975}` is about 12.7), so the interval is very wide and
-#' is better read as a weak bound than a precise one; precision improves
-#' quickly as more surveys enter the group.
+#' At the default 95 percent level, a single eligible survey retains its
+#' profile-likelihood density interval exactly. At another requested level the
+#' interval is rescaled from the profile limits because the pass counts needed
+#' to re-profile are no longer present in `x`. A zero-width discrete profile
+#' interval is expanded by half a fish on each side before conversion to a
+#' log-scale standard error, avoiding infinite inverse-variance weights without
+#' imposing an arbitrary relative variance floor.
+#'
+#' A survey enters the pooled density estimate and interval only when it
+#' converged, did not violate the depletion assumption, was identifiable (its
+#' abundance is bounded above), and had estimated capture probability at least
+#' `p_min`. When fewer than two surveys qualify, or a survey contributing to
+#' `N_mean` is held out, the group is flagged `weak`.
+#'
+#' @references
+#' Röver, C., Knapp, G. & Friede, T. (2015). Hartung-Knapp-Sidik-Jonkman
+#'   approach and its modification for random-effects meta-analysis with few
+#'   studies. BMC Medical Research Methodology 15:99.
+#'   \doi{10.1186/s12874-015-0091-1}
 #'
 #' @export
 #' @family analysis
@@ -92,11 +122,13 @@ summarize_cpue <- function(x, by = c("reach_id", "species"),
       class = "cpue_analysis_error"
     )
   }
-  if (!is.numeric(level) || length(level) != 1 || level <= 0 || level >= 1) {
+  if (!is.numeric(level) || length(level) != 1L || !is.finite(level) ||
+      level <= 0 || level >= 1) {
     cli::cli_abort("{.arg level} must be a single number in (0, 1).",
                    class = "cpue_analysis_error")
   }
-  if (!is.numeric(p_min) || length(p_min) != 1 || p_min < 0 || p_min >= 1) {
+  if (!is.numeric(p_min) || length(p_min) != 1L || !is.finite(p_min) ||
+      p_min < 0 || p_min >= 1) {
     cli::cli_abort("{.arg p_min} must be a single number in [0, 1).",
                    class = "cpue_analysis_error")
   }
@@ -119,10 +151,33 @@ summarize_cpue <- function(x, by = c("reach_id", "species"),
 
       ci_m  <- .hksj_logci(g$density_per_m[ci_use],
                            (g$N_lwr / g$length_m)[ci_use],
-                           (g$N_upr / g$length_m)[ci_use], level)
+                           (g$N_upr / g$length_m)[ci_use], level,
+                           resolution = (1 / g$length_m)[ci_use])
       ci_m2 <- .hksj_logci(g$density_per_m2[ci_use],
                            (g$N_lwr / g$area_m2)[ci_use],
-                           (g$N_upr / g$area_m2)[ci_use], level)
+                           (g$N_upr / g$area_m2)[ci_use], level,
+                           resolution = (1 / g$area_m2)[ci_use])
+
+      # The density point and interval must estimate the same quantity from
+      # the same surveys. A log-scale random-effects interval targets a pooled
+      # geometric mean, returned by .hksj_logci() as `mean`; reporting the
+      # arithmetic mean here would put a different estimand between those
+      # limits. If no survey is eligible for an interval, retain the old
+      # descriptive arithmetic point (with NA limits and weak = TRUE).
+      density_m_mean <- if (ci_m[["n"]] > 0) {
+        ci_m[["mean"]]
+      } else if (any(pt_use)) {
+        mean(g$density_per_m[pt_use])
+      } else {
+        NA_real_
+      }
+      density_m2_mean <- if (ci_m2[["n"]] > 0) {
+        ci_m2[["mean"]]
+      } else if (any(pt_use)) {
+        mean(g$density_per_m2[pt_use])
+      } else {
+        NA_real_
+      }
 
       # CPUE (catch / effort) is a model-free observed quantity that does not
       # depend on the depletion fit, so it is averaged over every survey with a
@@ -138,10 +193,10 @@ summarize_cpue <- function(x, by = c("reach_id", "species"),
         weak                  = weak,
         catch_total           = sum(g$catch_total),
         N_mean                = if (any(pt_use)) mean(g$N[pt_use]) else NA_real_,
-        density_per_m_mean    = if (any(pt_use)) mean(g$density_per_m[pt_use]) else NA_real_,
+        density_per_m_mean    = density_m_mean,
         density_per_m_lwr     = ci_m[["lwr"]],
         density_per_m_upr     = ci_m[["upr"]],
-        density_per_m2_mean   = if (any(pt_use)) mean(g$density_per_m2[pt_use]) else NA_real_,
+        density_per_m2_mean   = density_m2_mean,
         density_per_m2_lwr    = ci_m2[["lwr"]],
         density_per_m2_upr    = ci_m2[["upr"]],
         cpue_mean             = if (length(cpue_finite)) mean(cpue_finite) else NA_real_,
@@ -160,35 +215,79 @@ summarize_cpue <- function(x, by = c("reach_id", "species"),
 #' matches the right-skew of removal estimates, and it combines each
 #' survey's profile-likelihood uncertainty (`v_i`, from its `N_lwr`/`N_upr`)
 #' with the between-survey (temporal) variation by DerSimonian-Laird random
-#' effects. The Knapp-Hartung-Sidik-Jonkman variance and a Student-t
-#' critical value keep coverage near nominal at the very small number of
-#' surveys typical of a monitoring season (simulation: ~0.92-0.95 at two
-#' visits). The multiplicative half-width is capped at a factor of 20 so a
-#' single discordant pair cannot produce an unbounded bar.
+#' effects. The modified Knapp-Hartung variance uses a Student-t critical value
+#' and bounds its variance multiplier below by one, so identical point
+#' estimates retain their within-survey uncertainty. No arbitrary cap is
+#' applied to the interval width.
 #'
 #' @param d Per-survey density point estimates (well-identified surveys).
 #' @param dl,du Per-survey profile-likelihood density limits, aligned with
 #'   `d`.
 #' @param level Confidence level.
+#' @param resolution Smallest density increment for each survey (one fish
+#'   divided by reach length or area). Used only to give a zero-width discrete
+#'   profile interval a half-unit continuity width. When `NULL`, a numerical
+#'   fallback is used.
+#' @param profile_level Confidence level of the supplied per-survey profile
+#'   limits. [analyze_cpue()] currently supplies 95 percent limits.
 #'
 #' @return Named numeric vector `c(mean, lwr, upr, n)`; all `NA` (with
 #'   `n = 0`) when no survey is usable.
 #'
+#' @references
+#' Röver, C., Knapp, G. & Friede, T. (2015). Hartung-Knapp-Sidik-Jonkman
+#'   approach and its modification for random-effects meta-analysis with few
+#'   studies. BMC Medical Research Methodology 15:99.
+#'   \doi{10.1186/s12874-015-0091-1}
+#'
 #' @keywords internal
-.hksj_logci <- function(d, dl, du, level = 0.95) {
+.hksj_logci <- function(d, dl, du, level = 0.95, resolution = NULL,
+                        profile_level = 0.95) {
 
-  use <- is.finite(d) & d > 0 & is.finite(dl) & dl > 0 & is.finite(du) & du >= dl
-  d <- d[use]; dl <- dl[use]; du <- du[use]
+  if (is.null(resolution)) {
+    resolution <- pmax(abs(d), 1) * sqrt(.Machine$double.eps)
+  } else if (length(resolution) == 1L) {
+    resolution <- rep(resolution, length(d))
+  } else if (length(resolution) != length(d)) {
+    stop("resolution must have length 1 or the same length as d", call. = FALSE)
+  }
+
+  use <- is.finite(d) & d > 0 &
+    is.finite(dl) & dl > 0 &
+    is.finite(du) & du >= dl &
+    dl <= d & d <= du &
+    is.finite(resolution) & resolution > 0
+  d <- d[use]; dl <- dl[use]; du <- du[use]; resolution <- resolution[use]
   ng <- length(d)
   if (ng == 0) return(c(mean = NA_real_, lwr = NA_real_, upr = NA_real_, n = 0))
 
-  z <- stats::qnorm(1 - (1 - level) / 2)
+  # A discrete profile confidence set can legitimately contain one integer,
+  # but treating that set as a continuous zero-variance measurement gives an
+  # infinite inverse-variance weight. Represent the singleton by its natural
+  # half-fish boundaries before approximating a log-scale standard error.
+  singleton <- du == dl
+  dl[singleton] <- pmax(d[singleton] - resolution[singleton] / 2,
+                        .Machine$double.xmin)
+  du[singleton] <- d[singleton] + resolution[singleton] / 2
+
+  z_profile <- stats::qnorm(1 - (1 - profile_level) / 2)
   y <- log(d)
-  s <- (log(du) - log(dl)) / (2 * z)          # per-survey log-SE from the profile CI
+  # Use the larger side of an asymmetric profile interval. This produces a
+  # conservative symmetric log-SE centred on the survey estimate and ensures
+  # both profile limits are represented.
+  s <- pmax(y - log(dl), log(du) - y) / z_profile
   v <- s^2
 
   if (ng == 1) {
-    return(c(mean = exp(y), lwr = exp(y - z * s), upr = exp(y + z * s), n = 1))
+    # At the source profile level preserve the actual asymmetric interval.
+    # For a different requested level, rescale the conservative log-SE
+    # approximation; the raw pass counts needed to re-profile exactly are no
+    # longer present in analyze_cpue() output.
+    if (isTRUE(all.equal(level, profile_level))) {
+      return(c(mean = d, lwr = dl, upr = du, n = 1))
+    }
+    half <- stats::qnorm(1 - (1 - level) / 2) * s
+    return(c(mean = d, lwr = exp(y - half), upr = exp(y + half), n = 1))
   }
 
   w0    <- 1 / v
@@ -198,8 +297,12 @@ summarize_cpue <- function(x, by = c("reach_id", "species"),
   tau2  <- max(0, (Q - (ng - 1)) / c1)        # DerSimonian-Laird between-survey variance
   w     <- 1 / (v + tau2)
   ybar  <- sum(w * y) / sum(w)
-  se    <- sqrt(sum(w * (y - ybar)^2) / ((ng - 1) * sum(w)))  # Knapp-Hartung
-  half  <- min(stats::qt(1 - (1 - level) / 2, ng - 1) * se, log(20))
+  q     <- sum(w * (y - ybar)^2) / (ng - 1)
+  # Modified Knapp-Hartung: q < 1 can make the adjusted interval narrower
+  # than the conventional random-effects interval and collapses to zero for
+  # identical estimates. Bounding q below by one retains measurement error.
+  se    <- sqrt(max(1, q) / sum(w))
+  half  <- stats::qt(1 - (1 - level) / 2, ng - 1) * se
 
   c(mean = exp(ybar), lwr = exp(ybar - half), upr = exp(ybar + half), n = ng)
 }

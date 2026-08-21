@@ -15,15 +15,16 @@
 #               2. Check column types match the input contract    (kernel)
 #                  (required columns, and optional columns when present)
 #               3. Check no NA in required identifier columns     (kernel)
-#               4. Check pass numbers contiguous from 1 per reach x date
-#               5. Check effort > 0 for every record
-#               6. Check effort/amperage constant within each pass
-#               7. Check counts are non-negative integers
-#               8. Check reach extent (length_m, area_m2) > 0 for the
+#               4. Check both tables contain rows and reach metadata is unique
+#               5. Check pass numbers contiguous from 1 per reach x date
+#               6. Check effort > 0 and finite for every record
+#               7. Check effort/amperage constant within each pass
+#               8. Check counts are non-negative integers
+#               9. Check reach extent (length_m, area_m2) > 0 and finite for the
 #                  reaches catch_data actually references
-#               9. Check reach_id consistency across tables
-#              10. Check species present for every reach x date
-#              11. Collate failures; abort once via the kernel's
+#              10. Check reach_id consistency across tables
+#              11. Check species present for every reach x date
+#              12. Collate failures; abort once via the kernel's
 #                  validation_abort() with class cpue_validation_error
 # Dependencies: tritonIngest - shared validation kernel
 #               dplyr     - tidy data manipulation
@@ -79,6 +80,11 @@
 #' failures, so the returned error lists every problem at once rather
 #' than surfacing them one at a time.
 #'
+#' Both tables must contain at least one row, and `reach_metadata` must contain
+#' exactly one row per `reach_id`. Effort and sampled reach extents used as
+#' denominators must be finite and positive; `area_m2` may be `NA` when it is
+#' unavailable.
+#'
 #' @param catch_data A long-format catch data frame. Required columns:
 #'   `reach_id` (chr), `date` (Date), `pass_number` (int), `species`
 #'   (chr), `count` (int), `effort_seconds` (num). Optional columns:
@@ -119,6 +125,8 @@ validate_cpue_input <- function(catch_data, reach_metadata, strict = TRUE) {
   used_reach_ids <- if ("reach_id" %in% names(catch_data)) catch_data$reach_id else NULL
 
   failures <- c(
+    check_input_nonempty(catch_data, "catch_data"),
+    check_input_nonempty(reach_metadata, "reach_metadata"),
     tritonIngest::check_required_columns(catch_data,     .required_catch_cols, "catch_data"),
     tritonIngest::check_required_columns(reach_metadata, .required_reach_cols, "reach_metadata"),
     tritonIngest::check_column_types(catch_data,         .required_catch_cols, "catch_data"),
@@ -131,6 +139,7 @@ validate_cpue_input <- function(catch_data, reach_metadata, strict = TRUE) {
       "catch_data"
     ),
     tritonIngest::check_no_na(reach_metadata, "reach_id", "reach_metadata"),
+    check_reach_id_unique(reach_metadata),
     check_pass_contiguity(catch_data),
     check_effort_positive(catch_data),
     check_within_pass_consistency(catch_data),
@@ -156,6 +165,49 @@ validate_cpue_input <- function(catch_data, reach_metadata, strict = TRUE) {
 # Generic schema checks (check_required_columns, check_column_types,
 # type_matches, check_no_na) live in tritonIngest; only CPUE domain rules
 # are defined below.
+
+#' Check that an input table contains at least one row
+#'
+#' @param data An input data frame.
+#' @param table_name Human-readable argument name.
+#'
+#' @return Character vector of failure messages.
+#'
+#' @keywords internal
+check_input_nonempty <- function(data, table_name) {
+
+  if (!is.data.frame(data) || nrow(data) > 0) return(character(0))
+  as.character(glue::glue("{table_name} contains no rows"))
+}
+
+
+#' Check that reach metadata contains one row per reach
+#'
+#' A duplicate metadata key makes a downstream join multiply analysis rows,
+#' silently reweighting the affected reach in summaries.
+#'
+#' @param reach_metadata See [validate_cpue_input()].
+#'
+#' @return Character vector of failure messages.
+#'
+#' @keywords internal
+check_reach_id_unique <- function(reach_metadata) {
+
+  if (!"reach_id" %in% names(reach_metadata)) return(character(0))
+
+  ids <- reach_metadata$reach_id
+  duplicates <- unique(ids[duplicated(ids) & !is.na(ids)])
+  if (length(duplicates) == 0) return(character(0))
+
+  preview <- paste(utils::head(duplicates, 5), collapse = ", ")
+  tail_n <- length(duplicates) - 5
+  more <- if (tail_n > 0) glue::glue(" (and {tail_n} more)") else ""
+
+  as.character(glue::glue(
+    "reach_metadata$reach_id must be unique; duplicate id(s): ",
+    "{preview}{more}"
+  ))
+}
 
 #' Check that pass numbers are contiguous from 1 within each reach x date
 #'
@@ -270,11 +322,19 @@ check_within_pass_consistency <- function(catch_data) {
 
   if (!is.numeric(values)) return(character(0))
 
-  bad   <- if (na_ok) (values <= 0) & !is.na(values) else (values <= 0) | is.na(values)
+  bad <- values <= 0 | !is.finite(values)
+  if (na_ok) bad[is.na(values) & !is.nan(values)] <- FALSE
   bad_n <- sum(bad)
   if (bad_n == 0) return(character(0))
 
-  kind <- if (na_ok) "non-positive" else "non-positive or NA"
+  has_nonfinite <- any((is.infinite(values) | is.nan(values)) & bad)
+  kind <- if (has_nonfinite) {
+    if (na_ok) "non-positive or non-finite" else "non-positive, non-finite, or NA"
+  } else if (na_ok) {
+    "non-positive"
+  } else {
+    "non-positive or NA"
+  }
   as.character(glue::glue("{prefix} has {bad_n} {kind} value(s); {requirement}"))
 }
 
@@ -371,7 +431,14 @@ check_counts_nonneg_integer <- function(catch_data) {
     )))
   }
 
-  non_na <- counts[!is.na(counts)]
+  nonfinite <- !is.na(counts) & !is.finite(counts)
+  if (any(nonfinite)) {
+    problems <- c(problems, as.character(glue::glue(
+      "catch_data$count contains {sum(nonfinite)} non-finite value(s)"
+    )))
+  }
+
+  non_na <- counts[!is.na(counts) & is.finite(counts)]
 
   if (any(non_na < 0)) {
     problems <- c(problems, as.character(glue::glue(

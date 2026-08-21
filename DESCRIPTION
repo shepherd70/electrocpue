@@ -20,11 +20,13 @@ Suggests:
     FSA,
     bslib,
     ggplot2,
+    htmltools,
     knitr,
     rmarkdown,
     shiny,
     shinycssloaders,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    tibble
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Imports:
@@ -39,5 +41,5 @@ Remotes:
 Config/roxygen2/version: 7.3.2
 RoxygenNote: 7.3.2
 Depends:
-    R (>= 4.1.0)
+    R (>= 4.2.0)
 LazyData: true

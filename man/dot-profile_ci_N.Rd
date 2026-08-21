@@ -26,7 +26,10 @@ and the right-skew of the estimate, and they widen honestly when
 depletion is weak.
 }
 \details{
-The search runs \code{N} up to \code{cap_mult * T}. If the likelihood is still
+The search runs \code{N} up to \code{cap_mult * T}, using integer binary searches
+over the unimodal profile likelihood rather than allocating every
+candidate abundance. Its memory use is therefore constant even for very
+large catches. If the likelihood is still
 admissible at that cap the upper limit is unbounded -- the data cannot
 bound abundance from above, which happens at low capture probability --
 and \code{identifiable} is returned \code{FALSE} so downstream summaries can flag

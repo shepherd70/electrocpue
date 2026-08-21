@@ -8,7 +8,7 @@ zippin_estimate(counts, quiet = FALSE)
 }
 \arguments{
 \item{counts}{Numeric vector of catches per pass, ordered pass 1, 2,
-..., k. Must be non-negative integers with no \code{NA}.}
+..., k. Must be finite, non-negative integers with no \code{NA}.}
 
 \item{quiet}{Logical. If \code{TRUE}, suppress advisory warnings for
 non-convergent or single-pass series. Useful when estimating many

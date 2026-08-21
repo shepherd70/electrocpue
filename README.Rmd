@@ -72,7 +72,8 @@ head(res[, c("reach_id", "date", "species", "N", "N_se", "density_per_m", "cpue"
 ### Summarize repeat surveys
 
 `summarize_cpue()` rolls repeat survey dates up to a reach × species
-summary with confidence intervals on density.
+summary. Density is reported as a random-effects pooled geometric mean with
+a modified Knapp-Hartung confidence interval.
 
 ```{r summarize}
 summarize_cpue(res)[, c("reach_id", "species", "n_surveys", "N_mean",

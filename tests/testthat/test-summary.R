@@ -63,16 +63,15 @@ test_that("survey counts and catch totals aggregate correctly", {
 
 # ---- Confidence interval logic -----------------------------------------------
 
-test_that("a single identified survey gets a log-normal profile interval, flagged weak", {
+test_that("a single identified survey retains its profile interval and is flagged weak", {
   res <- summarize_cpue(make_analysis())
   rbt <- res[res$species == "RBT", ]   # n = 1
   expect_identical(rbt$n_identified, 1L)
   expect_true(rbt$weak)                # one survey cannot pin the reach mean
   d <- 32 / 100; dl <- 30 / 100; du <- 38 / 100
   expect_equal(rbt$density_per_m_mean, d)
-  # single-survey limits are geometric about d (positive by construction)
-  expect_equal(rbt$density_per_m_lwr, d * sqrt(dl / du))
-  expect_equal(rbt$density_per_m_upr, d * sqrt(du / dl))
+  expect_equal(rbt$density_per_m_lwr, dl)
+  expect_equal(rbt$density_per_m_upr, du)
 })
 
 test_that("multiple identified surveys pool to a positive HKSJ interval, not flagged weak", {
@@ -80,7 +79,13 @@ test_that("multiple identified surveys pool to a positive HKSJ interval, not fla
   bnt <- res[res$species == "BNT", ]   # n = 3, all identified
   expect_identical(bnt$n_identified, 3L)
   expect_false(bnt$weak)
-  expect_equal(bnt$density_per_m_mean, mean(c(74, 62, 80) / 100))  # arithmetic point
+  expected <- .hksj_logci(
+    c(74, 62, 80) / 100,
+    c(70, 60, 80) / 100,
+    c(82, 68, 90) / 100,
+    resolution = 1 / 100
+  )
+  expect_equal(bnt$density_per_m_mean, expected[["mean"]])
   expect_gt(bnt$density_per_m_lwr, 0)                              # positive (log scale)
   expect_lt(bnt$density_per_m_lwr, bnt$density_per_m_mean)
   expect_gt(bnt$density_per_m_upr, bnt$density_per_m_mean)
@@ -95,6 +100,17 @@ test_that("level argument widens or narrows the interval", {
             n$density_per_m_upr - n$density_per_m_lwr)
 })
 
+test_that("profile-derived precision is invariant to requested pooled level", {
+  args <- list(d = c(1, 1.2), dl = c(0.8, 1), du = c(1.3, 1.5),
+               resolution = 0.01)
+  narrow <- do.call(.hksj_logci, c(args, list(level = 0.90)))
+  wide   <- do.call(.hksj_logci, c(args, list(level = 0.99)))
+
+  expect_equal(narrow[["mean"]], wide[["mean"]])
+  expect_lt(narrow[["upr"]] / narrow[["mean"]],
+            wide[["upr"]] / wide[["mean"]])
+})
+
 test_that("the lower interval limit is positive by construction (log scale)", {
   res <- summarize_cpue(make_analysis())
   expect_true(all(res$density_per_m_lwr > 0))
@@ -107,7 +123,13 @@ test_that("the lower interval limit is positive by construction (log scale)", {
 test_that("areal density CI is computed when area is present", {
   res <- summarize_cpue(make_analysis())
   bnt <- res[res$species == "BNT", ]
-  expect_equal(bnt$density_per_m2_mean, mean(c(74, 62, 80) / 800))
+  expected <- .hksj_logci(
+    c(74, 62, 80) / 800,
+    c(70, 60, 80) / 800,
+    c(82, 68, 90) / 800,
+    resolution = 1 / 800
+  )
+  expect_equal(bnt$density_per_m2_mean, expected[["mean"]])
   expect_false(is.na(bnt$density_per_m2_lwr))
 })
 
@@ -167,7 +189,13 @@ test_that("assumption_violated surveys are excluded from estimates but surfaced"
   expect_identical(bnt$n_converged, 3L)            # it did converge
   expect_identical(bnt$n_assumption_violated, 1L)  # but is flagged
   expect_equal(bnt$N_mean, mean(c(74, 80)))        # excludes the flagged N = 62
-  expect_equal(bnt$density_per_m_mean, mean(c(74, 80) / 100))
+  expected <- .hksj_logci(
+    c(74, 80) / 100,
+    c(70, 80) / 100,
+    c(82, 90) / 100,
+    resolution = 1 / 100
+  )
+  expect_equal(bnt$density_per_m_mean, expected[["mean"]])
   # CPUE is model-free, so every survey still contributes.
   expect_equal(bnt$cpue_mean, mean(c(70, 60, 80) / 900))
 })
@@ -192,6 +220,41 @@ test_that("an infinite cpue (zero-effort survey) is dropped from cpue_mean", {
   expect_equal(bnt$cpue_mean, mean(c(70, 80) / 900))  # the Inf survey is dropped
 })
 
+test_that("modified Knapp-Hartung retains uncertainty for identical estimates", {
+  out <- .hksj_logci(
+    d = c(1, 1), dl = c(0.8, 0.8), du = c(1.2, 1.2),
+    resolution = 0.01
+  )
+  expect_equal(out[["mean"]], 1)
+  expect_lt(out[["lwr"]], out[["mean"]])
+  expect_gt(out[["upr"]], out[["mean"]])
+})
+
+test_that("zero-width discrete profiles pool to finite nonzero-width limits", {
+  out <- .hksj_logci(
+    d = c(1, 1), dl = c(1, 1), du = c(1, 1),
+    resolution = 0.01
+  )
+  expect_true(all(is.finite(out[c("mean", "lwr", "upr")])))
+  expect_lt(out[["lwr"]], out[["mean"]])
+  expect_gt(out[["upr"]], out[["mean"]])
+})
+
+test_that("pooled density estimate always lies inside its own interval", {
+  d <- c(rep(1, 9), 10000)
+  out <- .hksj_logci(d, 0.9 * d, 1.1 * d, resolution = 0.01)
+  expect_lte(out[["lwr"]], out[["mean"]])
+  expect_gte(out[["upr"]], out[["mean"]])
+  expect_false(isTRUE(all.equal(out[["mean"]], mean(d))))
+})
+
+test_that("statistical intervals are not truncated by a display-width cap", {
+  d <- c(1, 1000)
+  out <- .hksj_logci(d, 0.9 * d, 1.1 * d, resolution = 0.01)
+  expect_gt(out[["upr"]] / out[["mean"]], 20)
+  expect_gt(out[["mean"]] / out[["lwr"]], 20)
+})
+
 # ---- Custom grouping ---------------------------------------------------------
 
 test_that("by argument can collapse to reach level across species", {
@@ -213,10 +276,17 @@ test_that("missing required columns abort with a helpful message", {
 })
 
 test_that("invalid confidence level aborts", {
-  expect_error(summarize_cpue(make_analysis(), level = 1.5),
-               class = "cpue_analysis_error")
-  expect_error(summarize_cpue(make_analysis(), level = 0),
-               class = "cpue_analysis_error")
+  for (level in list(1.5, 0, NA_real_, Inf, numeric(0), c(0.9, 0.95))) {
+    expect_error(summarize_cpue(make_analysis(), level = level),
+                 class = "cpue_analysis_error")
+  }
+})
+
+test_that("invalid capture-probability threshold aborts", {
+  for (p_min in list(-0.1, 1, NA_real_, Inf, numeric(0), c(0.3, 0.4))) {
+    expect_error(summarize_cpue(make_analysis(), p_min = p_min),
+                 class = "cpue_analysis_error")
+  }
 })
 
 # ---- Integration with analyze_cpue -------------------------------------------
