@@ -11,7 +11,7 @@
 # Logic:        Estimand: the reach mean density. For each summary group the
 #               well-identified surveys (converged, depletion assumption held,
 #               abundance bounded above, capture probability >= p_min) are
-#               pooled on the log scale -- each survey's profile-likelihood
+#               pooled on the log scale -- each survey's likelihood-based
 #               interval combined with between-survey variation by
 #               DerSimonian-Laird random effects + modified Knapp-Hartung
 #               variance and a Student-t critical value. Positivity is
@@ -65,18 +65,18 @@
 #' @details
 #' The estimand for each density column is the random-effects mean log density,
 #' back-transformed to the original scale -- equivalently, a pooled geometric
-#' mean. Each eligible survey contributes its profile-likelihood interval
-#' (`N_lwr`/`N_upr`). For two or more surveys, within-survey uncertainty is
-#' combined with DerSimonian-Laird between-survey variation and a modified
-#' Knapp-Hartung Student-t interval. The modification bounds the Knapp-Hartung
-#' variance multiplier below by one, preventing identical survey estimates
-#' from erasing their nonzero measurement uncertainty. No arbitrary width cap
-#' is applied to the statistical interval.
+#' mean. Each eligible survey contributes its method-aligned likelihood
+#' interval (`N_lwr`/`N_upr`). For two or more surveys, within-survey
+#' uncertainty is combined with DerSimonian-Laird between-survey variation
+#' and a modified Knapp-Hartung Student-t interval. The modification bounds
+#' the Knapp-Hartung variance multiplier below by one, preventing identical
+#' survey estimates from erasing their nonzero measurement uncertainty. No
+#' arbitrary width cap is applied to the statistical interval.
 #'
 #' At the default 95 percent level, a single eligible survey retains its
-#' profile-likelihood density interval exactly. At another requested level the
-#' interval is rescaled from the profile limits because the pass counts needed
-#' to re-profile are no longer present in `x`. A zero-width discrete profile
+#' likelihood-based density interval exactly. At another requested level the
+#' interval is rescaled from the supplied limits because the pass counts needed
+#' to refit it are no longer present in `x`. A zero-width discrete likelihood
 #' interval is expanded by half a fish on each side before conversion to a
 #' log-scale standard error, avoiding infinite inverse-variance weights without
 #' imposing an arbitrary relative variance floor.
@@ -138,11 +138,14 @@ summarize_cpue <- function(x, by = c("reach_id", "species"),
     dplyr::group_modify(function(g, key) {
       conv     <- g$converged %in% TRUE
       violated <- conv & (g$note %in% "assumption_violated")
-      # Point-estimate set: every converged, depleting survey -- includes the
-      # weakly identified and zero-catch ones, so a reach always shows a number.
+      # Point-estimate set: every converged, depleting survey. Zero-catch
+      # surveys are deliberately non-converged because, with unknown capture
+      # probability, they cannot identify abundance; their observed zero CPUE
+      # remains available below.
       pt_use <- conv & !violated
       # Confidence-interval set: additionally require the survey be well
-      # identified (profile upper bounded) AND capture probability >= p_min.
+      # identified (data-only profile upper bounded) AND capture probability
+      # >= p_min.
       # Below that the removal estimate is biased and no interval is reliable,
       # so the survey is held out of the interval and the reach is flagged weak.
       ci_use <- pt_use & (g$identifiable %in% TRUE) & !is.na(g$p) & g$p >= p_min
@@ -213,7 +216,7 @@ summarize_cpue <- function(x, by = c("reach_id", "species"),
 #' Pools the well-identified surveys in a group into a reach-level density
 #' interval. It works on the log scale, so the interval stays positive and
 #' matches the right-skew of removal estimates, and it combines each
-#' survey's profile-likelihood uncertainty (`v_i`, from its `N_lwr`/`N_upr`)
+#' survey's likelihood-based uncertainty (`v_i`, from its `N_lwr`/`N_upr`)
 #' with the between-survey (temporal) variation by DerSimonian-Laird random
 #' effects. The modified Knapp-Hartung variance uses a Student-t critical value
 #' and bounds its variance multiplier below by one, so identical point
@@ -221,15 +224,16 @@ summarize_cpue <- function(x, by = c("reach_id", "species"),
 #' applied to the interval width.
 #'
 #' @param d Per-survey density point estimates (well-identified surveys).
-#' @param dl,du Per-survey profile-likelihood density limits, aligned with
+#' @param dl,du Per-survey likelihood-based density limits, aligned with
 #'   `d`.
 #' @param level Confidence level.
 #' @param resolution Smallest density increment for each survey (one fish
 #'   divided by reach length or area). Used only to give a zero-width discrete
-#'   profile interval a half-unit continuity width. When `NULL`, a numerical
+#'   likelihood interval a half-unit continuity width. When `NULL`, a numerical
 #'   fallback is used.
-#' @param profile_level Confidence level of the supplied per-survey profile
-#'   limits. [analyze_cpue()] currently supplies 95 percent limits.
+#' @param profile_level Confidence/support level of the supplied per-survey
+#'   likelihood limits. The legacy argument name is retained for compatibility;
+#'   [analyze_cpue()] currently supplies 95 percent limits.
 #'
 #' @return Named numeric vector `c(mean, lwr, upr, n)`; all `NA` (with
 #'   `n = 0`) when no survey is usable.
@@ -261,7 +265,7 @@ summarize_cpue <- function(x, by = c("reach_id", "species"),
   ng <- length(d)
   if (ng == 0) return(c(mean = NA_real_, lwr = NA_real_, upr = NA_real_, n = 0))
 
-  # A discrete profile confidence set can legitimately contain one integer,
+  # A discrete likelihood support set can legitimately contain one integer,
   # but treating that set as a continuous zero-variance measurement gives an
   # infinite inverse-variance weight. Represent the singleton by its natural
   # half-fish boundaries before approximating a log-scale standard error.
@@ -270,18 +274,18 @@ summarize_cpue <- function(x, by = c("reach_id", "species"),
                         .Machine$double.xmin)
   du[singleton] <- d[singleton] + resolution[singleton] / 2
 
-  z_profile <- stats::qnorm(1 - (1 - profile_level) / 2)
+  z_source <- stats::qnorm(1 - (1 - profile_level) / 2)
   y <- log(d)
-  # Use the larger side of an asymmetric profile interval. This produces a
+  # Use the larger side of an asymmetric likelihood interval. This produces a
   # conservative symmetric log-SE centred on the survey estimate and ensures
-  # both profile limits are represented.
-  s <- pmax(y - log(dl), log(du) - y) / z_profile
+  # both source limits are represented.
+  s <- pmax(y - log(dl), log(du) - y) / z_source
   v <- s^2
 
   if (ng == 1) {
-    # At the source profile level preserve the actual asymmetric interval.
+    # At the source level preserve the actual asymmetric interval.
     # For a different requested level, rescale the conservative log-SE
-    # approximation; the raw pass counts needed to re-profile exactly are no
+    # approximation; the raw pass counts needed to refit exactly are no
     # longer present in analyze_cpue() output.
     if (isTRUE(all.equal(level, profile_level))) {
       return(c(mean = d, lwr = dl, upr = du, n = 1))

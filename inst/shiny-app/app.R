@@ -99,7 +99,7 @@ ui <- bslib::page_sidebar(
       "Series results",
       shiny::p(shiny::helpText(
         "One row per reach × date × species: abundance N with its",
-        "profile-likelihood interval [N low, N high], capture probability,",
+        "likelihood-based interval [N low, N high], capture probability,",
         "density and CPUE.")),
       with_spin(DT::DTOutput("series_tbl"))
     ),
@@ -139,8 +139,8 @@ ui <- bslib::page_sidebar(
         shiny::tags$ul(
           shiny::tags$li(shiny::strong("Estimate:"),
             "removal-depletion abundance per survey (Zippin or Carle-Strub),",
-            "with a profile-likelihood interval that respects N ≥ catch and",
-            "an 'identifiable' flag when the data cannot bound N from above."),
+            "with a method-aligned likelihood interval that respects N ≥ catch and",
+            "an 'identifiable' flag when the data or reported interval cannot bound N from above."),
           shiny::tags$li(shiny::strong("Summarize:"),
             "repeat surveys are pooled to a reach × species geometric mean",
             "with a modified Knapp-Hartung random-effects interval.",

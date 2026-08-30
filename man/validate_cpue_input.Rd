@@ -36,7 +36,8 @@ than surfacing them one at a time.
 Both tables must contain at least one row, and \code{reach_metadata} must contain
 exactly one row per \code{reach_id}. Effort and sampled reach extents used as
 denominators must be finite and positive; \code{area_m2} may be \code{NA} when it is
-unavailable.
+unavailable. Every catch row must have a non-missing, non-blank species
+identifier.
 }
 \examples{
 \dontrun{

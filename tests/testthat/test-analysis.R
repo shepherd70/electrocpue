@@ -222,6 +222,24 @@ test_that("non-converging series produce a single aggregated warning", {
   expect_true(is.na(bad$N))
 })
 
+test_that("zero-catch series remain observed zeroes without an abundance estimate", {
+  catch <- make_catch()
+  is_r2 <- catch$reach_id == "R2" & catch$species == "BNT"
+  catch$count[is_r2] <- 0L
+
+  expect_warning(
+    res <- analyze_cpue(catch, make_meta()),
+    regexp = "did not yield"
+  )
+  zero <- res[res$reach_id == "R2" & res$species == "BNT", ]
+  expect_identical(zero$catch_total, 0)
+  expect_identical(zero$cpue, 0)
+  expect_true(is.na(zero$N))
+  expect_false(zero$converged)
+  expect_false(zero$identifiable)
+  expect_identical(zero$note, "zero_catch")
+})
+
 test_that("assumption-violated series produce an aggregated advisory", {
   # Increasing catch converges under Carle & Strub but violates the
   # depletion assumption; analyze_cpue must surface it in aggregate even

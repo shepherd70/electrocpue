@@ -20,7 +20,7 @@
 #                 X = sum((k - i) * c_i)        (passes-remaining weighting)
 #                 p = T / (k * N - X)           (per-pass capture probability)
 # Edge cases:   single pass (k == 1)  -> N = NA, converged = FALSE, warning
-#               zero total catch      -> N = 0,  converged = TRUE  (no detections)
+#               zero total catch      -> N = NA, identifiable = FALSE (no signal)
 #               Zippin model failure  -> N = NA, converged = FALSE, warning
 #               runaway search        -> N = NA, converged = FALSE, warning
 #                 (note = "no_convergence"; an extreme non-depleting series
@@ -57,20 +57,28 @@
 #'
 #' @return A one-row data frame with columns: `method`, `n_passes`,
 #'   `catch_total`, `N` (population estimate), `N_se`, `N_lwr`/`N_upr`
-#'   (profile-likelihood confidence limits for `N`; respect `N >= T` and
-#'   are asymmetric), `p` (per-pass capture probability), `p_se`,
-#'   `converged` (logical), `identifiable` (logical; `FALSE` when the data
-#'   cannot bound `N` from above -- typically low capture probability),
+#'   (method-aligned likelihood-ratio limits for `N`; Zippin uses the
+#'   profile likelihood and Carle & Strub uses its prior-weighted likelihood;
+#'   both respect `N >= T` and are asymmetric; `N_upr = Inf` explicitly marks
+#'   an unbounded upper limit), `p` (per-pass capture probability), `p_se`,
+#'   `converged` (logical), `identifiable` (logical; `FALSE` when either the
+#'   data-only profile likelihood or the reported method-aligned interval
+#'   cannot bound `N` from above -- typically at low capture probability;
+#'   an informative prior never promotes data identifiability),
 #'   and `note` (one of `"ok"`, `"single_pass"`, `"zero_catch"`,
 #'   `"model_failure"`, `"no_convergence"`, `"assumption_violated"`).
 #'
 #' @details
 #' Point estimates and variances follow the standard removal formulae
 #' (Zippin 1956, 1958; Carle & Strub 1978) as implemented in the FSA
-#' package, so results are directly comparable to `FSA::removal()`. A
-#' zero total catch is reported as `N = 0` (no fish detected -> zero
-#' density) rather than as a model failure, which is the more useful
-#' convention for downstream CPUE work.
+#' package, so results are directly comparable to `FSA::removal()`.
+#'
+#' An all-zero catch series cannot identify abundance when capture
+#' probability is unknown: at `p = 0`, every possible `N` has the same
+#' maximized likelihood. It is therefore returned as `N = NA`,
+#' `converged = FALSE`, and `identifiable = FALSE`. The observed catch and
+#' CPUE remain zero downstream, but no zero population estimate or
+#' zero-width abundance interval is asserted.
 #'
 #' The removal model assumes catch declines across passes as the local
 #' population is depleted, so the first pass should catch the most fish.
@@ -116,10 +124,17 @@ estimate_population <- function(counts,
   # ---- auto: prefer Zippin, fall back to Carle-Strub on model failure ----
   z <- zippin_estimate(counts, quiet = TRUE)
 
-  # Converged Zippin fit (includes the trivial zero-catch case) wins. A
-  # converged fit may still carry note = "assumption_violated" when the
-  # catch does not decline across passes (zippin_estimate flags it), so
-  # surface that warning here rather than returning a clean-looking result.
+  # No depletion estimator can infer abundance from an all-zero series when
+  # capture probability is unknown. Do not send it to the fallback estimator:
+  # both methods have the same structural absence of information.
+  if (identical(z$note, "zero_catch")) {
+    if (!quiet) .warn_zero_catch()
+    return(z)
+  }
+
+  # A converged fit may still carry note = "assumption_violated" when the
+  # catch does not decline across passes (zippin_estimate flags it), so surface
+  # that warning here rather than returning a clean-looking result.
   if (isTRUE(z$converged)) {
     if (!quiet && identical(z$note, "assumption_violated")) {
       cli::cli_warn(c(
@@ -209,7 +224,7 @@ zippin_estimate <- function(counts, quiet = FALSE) {
       "Single-pass series: Zippin estimation requires >= 2 passes; returning NA."))
   }
   if (T == 0) {
-    return(.zero_catch_estimate("zippin", k))
+    return(.zero_catch_estimate("zippin", k, quiet))
   }
 
   # Zippin model-failure condition (insufficient depletion). Matches the
@@ -264,6 +279,17 @@ zippin_estimate <- function(counts, quiet = FALSE) {
 #' derive a separate variance, so this is the conventional approximation
 #' rather than an exact Carle & Strub standard error.
 #'
+#' The abundance limits use a likelihood-ratio inversion of the same
+#' beta-weighted likelihood that produces the Carle & Strub point estimate.
+#' Consequently custom `alpha` and `beta` values affect both the point and its
+#' limits; a converged point estimate is always contained by its reported
+#' interval. These are weighted-likelihood limits, not Zippin profile limits.
+#' The `identifiable` flag requires both the weighted interval and the
+#' data-only profile to be bounded: a prior may regularize the weighted
+#' interval, but it cannot turn a weak catch series into informative depletion
+#' data. An unbounded weighted upper limit is returned as `Inf`, never as the
+#' finite internal search cap.
+#'
 #' Unlike Zippin, Carle & Strub does not reject a non-depleting series
 #' outright: when the catch does not decline across passes (some later
 #' pass catches as many fish as the first, or more) it can still converge
@@ -303,7 +329,7 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
       "Single-pass series: Carle & Strub estimation requires >= 2 passes; returning NA."))
   }
   if (T == 0) {
-    return(.zero_catch_estimate("carle_strub", k))
+    return(.zero_catch_estimate("carle_strub", k, quiet))
   }
 
   # Posterior-mode integer search (Carle & Strub 1978, eq. for N-hat).
@@ -327,13 +353,15 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
   # removal series should show net decline as the local population is
   # removed; .flag_non_depletion() downgrades note to "assumption_violated"
   # (with a warning) when it does not, rather than reporting a clean "ok".
-  pci <- .profile_ci_N(counts)
+  wci <- .carle_strub_ci_N(counts, N_hat = N0, alpha = alpha, beta = beta)
+  data_identifiable <- .profile_ci_N(counts)$identifiable
   est <- .build_estimate(
     method = "carle_strub", k = k, T = T,
     N = N0, N_var = .zippin_no_var(N0, p, k),
     p = p, p_var = .zippin_p_var(N0, p, k),
     converged = TRUE, note = "ok",
-    N_lwr = pci$lwr, N_upr = pci$upr, identifiable = pci$identifiable
+    N_lwr = wci$lwr, N_upr = wci$upr,
+    identifiable = wci$identifiable && data_identifiable
   )
   .flag_non_depletion(est, counts, quiet, "Carle & Strub")
 }
@@ -425,13 +453,26 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
                   p = NA_real_, p_var = NA_real_, converged = FALSE, note = note)
 }
 
-#' Build the zero-catch result (no detections -> zero density)
+#' Warn that a zero-catch series cannot identify abundance
 #' @keywords internal
-.zero_catch_estimate <- function(method, k) {
-  .build_estimate(method, k, T = 0, N = 0, N_var = 0,
-                  p = NA_real_, p_var = NA_real_, converged = TRUE,
-                  note = "zero_catch",
-                  N_lwr = 0, N_upr = 0, identifiable = TRUE)
+.warn_zero_catch <- function() {
+  cli::cli_warn(c(
+    "Zero-catch series: abundance cannot be identified; returning NA.",
+    "i" = "With unknown capture probability, no detections do not establish a zero population."
+  ))
+}
+
+#' Build the unidentifiable zero-catch result
+#'
+#' The observed catch is zero, but with unknown capture probability the
+#' removal likelihood is flat in `N` at `p = 0`. Consequently there is no
+#' population estimate or finite abundance interval.
+#' @keywords internal
+.zero_catch_estimate <- function(method, k, quiet = FALSE) {
+  if (!quiet) .warn_zero_catch()
+  .build_estimate(method, k, T = 0, N = NA_real_, N_var = NA_real_,
+                  p = NA_real_, p_var = NA_real_, converged = FALSE,
+                  note = "zero_catch", identifiable = FALSE)
 }
 
 #' Flag a converged estimate whose catch series does not deplete
@@ -476,6 +517,78 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
   est
 }
 
+#' Carle & Strub weighted-likelihood interval for removal abundance
+#'
+#' Inverts the same beta-weighted removal likelihood whose adjacent-value
+#' ratio is used by [carle_strub_estimate()] to locate its integer point
+#' estimate. Keeping the prior parameters in the interval calculation avoids
+#' reporting limits from a different model that may not contain the estimate.
+#'
+#' The weighted likelihood, up to terms constant in `N`, is
+#' `N! / (N - T)! * B(T + alpha, k * N - X - T + beta)`. The likelihood-ratio
+#' acceptance set is searched with constant-memory integer binary searches.
+#'
+#' @param counts Pass-ordered catch vector (length >= 2, `sum(counts) > 0`).
+#' @param N_hat Carle & Strub integer point estimate.
+#' @param alpha,beta Positive beta-prior parameters.
+#' @param level Confidence/support level. Defaults to `0.95`.
+#' @param cap_mult Search-cap multiplier applied to both total catch and the
+#'   point estimate. Including the point estimate is essential for strongly
+#'   informative custom priors that move `N_hat` well beyond total catch.
+#'
+#' @return A list with `lwr`, `upr` (abundance limits; `upr = Inf` when the
+#'   weighted likelihood remains admissible at the internal search cap) and
+#'   `identifiable` (logical).
+#'
+#' @keywords internal
+.carle_strub_ci_N <- function(counts, N_hat, alpha = 1, beta = 1,
+                              level = 0.95, cap_mult = 50) {
+
+  k <- length(counts)
+  T <- sum(counts)
+  X <- sum((k - seq_len(k)) * counts)
+  cap <- floor(max(T * cap_mult, T + 300,
+                   N_hat * cap_mult, N_hat + 300))
+
+  loglik <- function(N) {
+    failures <- k * N - X - T
+    if (!is.finite(N) || N < T || failures < 0) return(-Inf)
+
+    lgamma(N + 1) - lgamma(N - T + 1) +
+      lbeta(T + alpha, failures + beta)
+  }
+
+  mode_ll <- loglik(N_hat)
+  cutoff <- mode_ll - stats::qchisq(level, 1) / 2
+  inside <- function(N) loglik(N) >= cutoff
+
+  # The weighted likelihood is unimodal around N_hat. Find the first and last
+  # accepted integers without allocating the potentially very large grid.
+  lo <- T
+  hi <- N_hat
+  while (lo < hi) {
+    mid <- floor((lo + hi) / 2)
+    if (inside(mid)) hi <- mid else lo <- mid + 1
+  }
+  lwr <- lo
+
+  if (inside(cap)) {
+    upr <- Inf
+    identifiable <- FALSE
+  } else {
+    lo <- N_hat
+    hi <- cap
+    while (lo < hi) {
+      mid <- ceiling((lo + hi) / 2)
+      if (inside(mid)) lo <- mid else hi <- mid - 1
+    }
+    upr <- lo
+    identifiable <- TRUE
+  }
+
+  list(lwr = lwr, upr = upr, identifiable = identifiable)
+}
+
 #' Profile-likelihood confidence interval for removal abundance
 #'
 #' Inverts the constant-capture-probability removal likelihood to bracket
@@ -491,15 +604,17 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
 #' large catches. If the likelihood is still
 #' admissible at that cap the upper limit is unbounded -- the data cannot
 #' bound abundance from above, which happens at low capture probability --
-#' and `identifiable` is returned `FALSE` so downstream summaries can flag
-#' the series rather than report a falsely finite interval.
+#' and `upr = Inf`, `identifiable = FALSE` are returned so downstream summaries
+#' can flag the series without exposing the finite search cap as a statistical
+#' limit.
 #'
 #' @param counts Pass-ordered catch vector (length >= 2, `sum(counts) > 0`).
 #' @param level Confidence level. Defaults to `0.95`.
 #' @param cap_mult Upper search bound as a multiple of the total catch.
 #'
-#' @return A list with `lwr`, `upr` (integer abundance limits) and
-#'   `identifiable` (logical).
+#' @return A list with `lwr`, `upr` (abundance limits; `upr = Inf` when the
+#'   profile remains admissible at the internal search cap) and `identifiable`
+#'   (logical).
 #'
 #' @keywords internal
 .profile_ci_N <- function(counts, level = 0.95, cap_mult = 50) {
@@ -553,7 +668,8 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
   lwr <- lo
 
   if (inside(cap)) {
-    upr <- cap
+    upr <- Inf
+    identifiable <- FALSE
   } else {
     lo <- mode
     hi <- cap
@@ -562,7 +678,8 @@ carle_strub_estimate <- function(counts, alpha = 1, beta = 1, quiet = FALSE) {
       if (inside(mid)) lo <- mid else hi <- mid - 1
     }
     upr <- lo
+    identifiable <- TRUE
   }
 
-  list(lwr = lwr, upr = upr, identifiable = upr < cap)
+  list(lwr = lwr, upr = upr, identifiable = identifiable)
 }

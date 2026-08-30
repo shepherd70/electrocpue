@@ -162,6 +162,30 @@ test_that("non-converged surveys are excluded from means but counted", {
   expect_equal(bnt$cpue_mean, mean(c(70, 60, 80) / 900))
 })
 
+test_that("zero-catch surveys retain CPUE but do not assert zero abundance", {
+  x <- make_analysis()
+  # Model the result now returned by analyze_cpue() for an all-zero series.
+  x$catch_total[2] <- 0
+  x$N[2] <- NA_real_
+  x$N_se[2] <- NA_real_
+  x$N_lwr[2] <- NA_real_
+  x$N_upr[2] <- NA_real_
+  x$p[2] <- NA_real_
+  x$p_se[2] <- NA_real_
+  x$converged[2] <- FALSE
+  x$identifiable[2] <- FALSE
+  x$note[2] <- "zero_catch"
+  x$cpue[2] <- 0
+  x$density_per_m[2] <- NA_real_
+  x$density_per_m2[2] <- NA_real_
+
+  res <- summarize_cpue(x)
+  bnt <- res[res$species == "BNT", ]
+  expect_identical(bnt$n_converged, 2L)
+  expect_equal(bnt$N_mean, mean(c(74, 80)))
+  expect_equal(bnt$cpue_mean, mean(c(70 / 900, 0, 80 / 900)))
+})
+
 test_that("a group with zero converged surveys yields NA estimates", {
   x <- make_analysis()
   x <- x[x$species == "RBT", ]

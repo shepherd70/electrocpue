@@ -14,8 +14,8 @@
 #' Opens the bundled standalone front-end for the electrocpue workflow
 #' (validate, estimate, analyze, summarize). Explore the bundled example
 #' data or upload your own catch and reach tables, choose an estimator and
-#' effort basis, and read back per-survey abundance with profile-likelihood
-#' intervals plus pooled reach density, CPUE, and figures.
+#' effort basis, and read back per-survey abundance with method-aligned
+#' likelihood intervals plus pooled reach density, CPUE, and figures.
 #'
 #' @details
 #' The front-end lives under `inst/shiny-app` and depends on the

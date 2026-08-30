@@ -47,18 +47,18 @@ averaged over all surveys with a finite catch rate.
 \details{
 The estimand for each density column is the random-effects mean log density,
 back-transformed to the original scale -- equivalently, a pooled geometric
-mean. Each eligible survey contributes its profile-likelihood interval
-(\code{N_lwr}/\code{N_upr}). For two or more surveys, within-survey uncertainty is
-combined with DerSimonian-Laird between-survey variation and a modified
-Knapp-Hartung Student-t interval. The modification bounds the Knapp-Hartung
-variance multiplier below by one, preventing identical survey estimates
-from erasing their nonzero measurement uncertainty. No arbitrary width cap
-is applied to the statistical interval.
+mean. Each eligible survey contributes its method-aligned likelihood
+interval (\code{N_lwr}/\code{N_upr}). For two or more surveys, within-survey
+uncertainty is combined with DerSimonian-Laird between-survey variation
+and a modified Knapp-Hartung Student-t interval. The modification bounds
+the Knapp-Hartung variance multiplier below by one, preventing identical
+survey estimates from erasing their nonzero measurement uncertainty. No
+arbitrary width cap is applied to the statistical interval.
 
 At the default 95 percent level, a single eligible survey retains its
-profile-likelihood density interval exactly. At another requested level the
-interval is rescaled from the profile limits because the pass counts needed
-to re-profile are no longer present in \code{x}. A zero-width discrete profile
+likelihood-based density interval exactly. At another requested level the
+interval is rescaled from the supplied limits because the pass counts needed
+to refit it are no longer present in \code{x}. A zero-width discrete likelihood
 interval is expanded by half a fish on each side before conversion to a
 log-scale standard error, avoiding infinite inverse-variance weights without
 imposing an arbitrary relative variance floor.

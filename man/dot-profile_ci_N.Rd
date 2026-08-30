@@ -14,8 +14,9 @@
 \item{cap_mult}{Upper search bound as a multiple of the total catch.}
 }
 \value{
-A list with \code{lwr}, \code{upr} (integer abundance limits) and
-\code{identifiable} (logical).
+A list with \code{lwr}, \code{upr} (abundance limits; \code{upr = Inf} when the
+profile remains admissible at the internal search cap) and \code{identifiable}
+(logical).
 }
 \description{
 Inverts the constant-capture-probability removal likelihood to bracket
@@ -32,7 +33,8 @@ candidate abundance. Its memory use is therefore constant even for very
 large catches. If the likelihood is still
 admissible at that cap the upper limit is unbounded -- the data cannot
 bound abundance from above, which happens at low capture probability --
-and \code{identifiable} is returned \code{FALSE} so downstream summaries can flag
-the series rather than report a falsely finite interval.
+and \code{upr = Inf}, \code{identifiable = FALSE} are returned so downstream summaries
+can flag the series without exposing the finite search cap as a statistical
+limit.
 }
 \keyword{internal}

@@ -1,6 +1,6 @@
 # electrocpue — Development Task Tracker
 
-Package: `electrocpue` v0.2.0  
+Package: `electrocpue` v0.3.0
 Goal: Multi-pass electrofishing CPUE analysis toolkit for R
 
 Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
@@ -19,7 +19,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 ### Population Estimation
 - [x] Implement Zippin maximum-likelihood depletion estimator (matches `FSA::removal()` exactly)
 - [x] Implement Carle–Strub depletion estimator (posterior-mode search, α=β=1)
-- [x] Handle zero-catch / single-pass edge cases gracefully (single-pass → NA+warn; zero catch → N=0; model failure → NA+warn)
+- [x] Handle zero-catch / single-pass edge cases gracefully (single-pass → NA+warn; zero catch → unidentifiable NA+warn; model failure → NA+warn)
 - [x] Export a unified `estimate_population()` dispatcher (auto: Zippin → Carle–Strub fallback)
 - [x] Document and test estimation functions (92 tests incl. FSA cross-validation)
 
@@ -115,6 +115,24 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 - [x] Refresh `renv.lock` to `tritonIngest` v0.4.2 (commit `c40c975`), matching
   `DESCRIPTION` and its `Remotes` tag.
 - [x] Tag `v0.2.0`; the tag is present in the repository.
+
+### Development audit follow-up (2026-08-30)
+- [x] Treat all-zero removal series as unidentifiable (`N = NA`) while retaining
+  observed zero catch and CPUE.
+- [x] Reject blank and whitespace-only species identifiers on every catch row.
+- [x] Give Carle-Strub estimates prior-weighted likelihood limits that use the
+  same `alpha` and `beta` as the point estimate, while keeping `identifiable`
+  tied to the data-only profile.
+- [x] Return `N_upr = Inf` for an unbounded interval instead of exposing the
+  finite internal search cap.
+
+### v0.3.0 release preparation
+- [x] Bump `DESCRIPTION` and NEWS to `0.3.0`.
+- [x] Add migration guidance for zero-catch and unbounded-interval semantics.
+- [x] Add a dedicated Ubuntu/TinyTeX CI job for the PDF reference manual; the
+  five-platform package-check matrix continues to install all `Suggests`.
+- [ ] Confirm the release PR is green on all CI platforms.
+- [ ] Merge and tag `v0.3.0` after review.
 
 ---
 

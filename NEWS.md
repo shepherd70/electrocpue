@@ -1,7 +1,23 @@
-# electrocpue (development version)
+# electrocpue 0.3.0
+
+## Migration from 0.2.0
+
+* All-zero removal series no longer assert `N = 0`. Use `catch_total` or
+  `cpue` for the observed zero, and require `converged` before consuming `N`.
+* An unbounded abundance interval now has `N_upr = Inf`, rather than exposing
+  the finite internal search cap. Check `identifiable` (or `is.finite(N_upr)`)
+  before treating the upper limit as bounded.
 
 ## Statistical interval corrections
 
+* An all-zero removal series is now reported as unidentifiable (`N`, `p`, and
+  abundance limits are `NA`; `converged` and `identifiable` are `FALSE`). The
+  observed catch and CPUE remain zero, without treating no detections as proof
+  of a zero population.
+* Carle-Strub abundance limits now invert the same beta-weighted likelihood as
+  the point estimate. Custom `alpha` and `beta` values therefore affect both,
+  and every converged point estimate is contained by its reported limits. The
+  `identifiable` flag remains data-based rather than being promoted by a prior.
 * Profile-likelihood abundance intervals now evaluate the legitimate
   `p = 1` boundary correctly, so a high-capture estimate such as `N = catch`
   is contained in its own interval.
@@ -17,6 +33,10 @@
   binary searches. Results match the former exhaustive candidate grid, while
   large valid catches no longer allocate vectors and matrices proportional to
   `50 * catch_total`.
+* When a profile or weighted-likelihood interval remains admissible at its
+  internal search cap, the public upper limit is now `Inf` and
+  `identifiable = FALSE`; the implementation cap is no longer presented as a
+  statistical bound.
 
 ## Audit hardening
 
@@ -25,6 +45,8 @@
   extents. The analysis join also guards metadata uniqueness when callers
   explicitly skip validation, preventing duplicated reach rows from silently
   reweighting summaries.
+* Blank and whitespace-only `species` values are now rejected on every catch
+  row, even when another row in the same survey has a valid species identifier.
 * Removal counts, Carle-Strub priors, summary confidence levels, capture
   thresholds, and the analysis validation flag now reject malformed or
   non-finite values with package-classed errors.
@@ -41,7 +63,7 @@
   front-end for the full validate → estimate → analyze → summarize
   workflow. Explore the bundled example data or upload your own catch and
   reach tables, pick an estimator and effort basis, and read back
-  per-survey abundance with profile-likelihood intervals, pooled reach
+  per-survey abundance with method-aligned likelihood intervals, pooled reach
   density and CPUE, and figures with confidence intervals. The confidence
   level and `p_min` sliders recompute the summary and plots live. The app
   lives under `inst/shiny-app`; its packages (shiny, bslib, DT, ggplot2,

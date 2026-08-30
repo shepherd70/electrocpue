@@ -95,10 +95,23 @@ test_that("validate_cpue_input reports within-pass effort disagreement", {
   )
 })
 
+test_that("validate_cpue_input rejects a blank species on any catch row", {
+  catch <- snap_catch()
+  catch$species[2] <- "  \t"
+  expect_snapshot(
+    validate_cpue_input(catch, snap_meta(), strict = FALSE),
+    error = TRUE
+  )
+})
+
 # ---- Estimation: warnings and aborts -----------------------------------------
 
 test_that("single-pass series warns and returns NA", {
   expect_snapshot(invisible(estimate_population(c(5L))))
+})
+
+test_that("zero-catch series warns that abundance is unidentifiable", {
+  expect_snapshot(invisible(estimate_population(c(0L, 0L))))
 })
 
 test_that("auto falls back to Carle & Strub when Zippin fails", {
