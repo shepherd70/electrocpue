@@ -1,3 +1,11 @@
+# electrocpue (development version)
+
+## CI maintenance
+
+* GitHub Actions now uses `actions/checkout@v6`, moving checkout to the
+  Node.js 24 runtime and removing the Node.js 20 deprecation warnings emitted
+  by the v0.3.0 release workflow.
+
 # electrocpue 0.3.0
 
 ## Migration from 0.2.0

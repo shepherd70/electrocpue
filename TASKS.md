@@ -1,6 +1,6 @@
 # electrocpue — Development Task Tracker
 
-Package: `electrocpue` v0.3.0
+Package: `electrocpue` v0.3.0.9000 (development)
 Goal: Multi-pass electrofishing CPUE analysis toolkit for R
 
 Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
@@ -131,8 +131,18 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 - [x] Add migration guidance for zero-catch and unbounded-interval semantics.
 - [x] Add a dedicated Ubuntu/TinyTeX CI job for the PDF reference manual; the
   five-platform package-check matrix continues to install all `Suggests`.
-- [ ] Confirm the release PR is green on all CI platforms.
-- [ ] Merge and tag `v0.3.0` after review.
+- [x] Confirm PR #13 and the post-merge `main` run are green on all six CI
+  jobs (macOS, Windows, Linux release/devel/oldrel-1, and PDF manual).
+- [x] Merge PR #13 as `a336a7b` and publish the annotated `v0.3.0` tag.
+
+---
+
+## Milestone 6 — Post-release development
+
+### CI maintenance
+- [x] Open the post-v0.3.0 development cycle as `0.3.0.9000`.
+- [x] Upgrade both workflow checkout steps from `actions/checkout@v4` to v6,
+  moving them to Node.js 24 and clearing the release run's deprecation warning.
 
 ---
 

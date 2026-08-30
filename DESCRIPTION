@@ -1,6 +1,6 @@
 Package: electrocpue
 Title: Electrofishing Catch-Per-Unit-Effort Analyzer
-Version: 0.3.0
+Version: 0.3.0.9000
 Authors@R:
     person("Travis", "Shepherd",
            email = "shepherd70@gmail.com",
