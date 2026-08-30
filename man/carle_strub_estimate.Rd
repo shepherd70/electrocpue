@@ -34,6 +34,17 @@ estimate, which is what \code{FSA::removal()} returns. Carle & Strub do not
 derive a separate variance, so this is the conventional approximation
 rather than an exact Carle & Strub standard error.
 
+The abundance limits use a likelihood-ratio inversion of the same
+beta-weighted likelihood that produces the Carle & Strub point estimate.
+Consequently custom \code{alpha} and \code{beta} values affect both the point and its
+limits; a converged point estimate is always contained by its reported
+interval. These are weighted-likelihood limits, not Zippin profile limits.
+The \code{identifiable} flag requires both the weighted interval and the
+data-only profile to be bounded: a prior may regularize the weighted
+interval, but it cannot turn a weak catch series into informative depletion
+data. An unbounded weighted upper limit is returned as \code{Inf}, never as the
+finite internal search cap.
+
 Unlike Zippin, Carle & Strub does not reject a non-depleting series
 outright: when the catch does not decline across passes (some later
 pass catches as many fish as the first, or more) it can still converge

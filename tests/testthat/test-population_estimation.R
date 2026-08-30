@@ -64,23 +64,44 @@ test_that("quiet = TRUE suppresses the single-pass warning", {
 
 # ---- Edge case: zero catch ---------------------------------------------------
 
-test_that("zero total catch returns N = 0 and converged = TRUE (no warning)", {
-  expect_no_warning(out <- zippin_estimate(c(0, 0, 0), quiet = FALSE))
-  expect_identical(out$N, 0)
-  expect_identical(out$N_se, 0)
+test_that("zero total catch is unidentifiable and returns no abundance estimate", {
+  expect_warning(
+    out <- zippin_estimate(c(0, 0, 0), quiet = FALSE),
+    regexp = "cannot be identified"
+  )
+  expect_true(is.na(out$N))
+  expect_true(is.na(out$N_se))
+  expect_true(is.na(out$N_lwr))
+  expect_true(is.na(out$N_upr))
   expect_true(is.na(out$p))
-  expect_true(out$converged)
+  expect_false(out$converged)
+  expect_false(out$identifiable)
   expect_identical(out$note, "zero_catch")
 })
 
-test_that("carle_strub also reports zero catch as N = 0", {
+test_that("all estimators use the same unidentifiable zero-catch convention", {
+  expect_no_warning(cs <- carle_strub_estimate(c(0, 0), quiet = TRUE))
+  expect_no_warning(auto <- estimate_population(c(0, 0), quiet = TRUE))
+
+  for (out in list(cs, auto)) {
+    expect_true(is.na(out$N))
+    expect_false(out$converged)
+    expect_false(out$identifiable)
+    expect_identical(out$note, "zero_catch")
+  }
+  expect_warning(
+    estimate_population(c(0, 0), quiet = FALSE),
+    regexp = "cannot be identified"
+  )
+})
+
+test_that("zero-catch output retains observed catch without asserting zero N", {
   out <- carle_strub_estimate(c(0, 0), quiet = TRUE)
-  expect_identical(out$N, 0)
-  expect_true(out$converged)
+  expect_identical(out$catch_total, 0)
   expect_identical(out$note, "zero_catch")
 })
 
-test_that("profile interval includes a p = 1 boundary estimate", {
+test_that("likelihood interval includes a p = 1 boundary estimate", {
   for (estimator in list(zippin_estimate, carle_strub_estimate)) {
     for (counts in list(c(26, 0), c(26, 0, 0), c(26, 0, 0, 0))) {
       out <- estimator(counts, quiet = TRUE)
@@ -93,7 +114,7 @@ test_that("profile interval includes a p = 1 boundary estimate", {
   }
 })
 
-test_that("profile intervals contain converged estimates across a grid", {
+test_that("method-aligned intervals contain converged estimates across a grid", {
   cases <- unlist(lapply(2:40, function(first) {
     lapply(0:min(first - 1L, 12L), function(later) c(first, later))
   }), recursive = FALSE)
@@ -110,6 +131,112 @@ test_that("profile intervals contain converged estimates across a grid", {
       }
     }
   }
+})
+
+test_that("Carle-Strub custom-prior intervals contain their point estimates", {
+  cases <- list(c(2, 0), c(7, 2), c(12, 5, 1))
+  priors <- list(c(0.1, 5), c(5, 0.1), c(1, 100), c(2, 3))
+
+  for (counts in cases) {
+    for (prior in priors) {
+      out <- carle_strub_estimate(
+        counts, alpha = prior[1], beta = prior[2], quiet = TRUE
+      )
+      if (isTRUE(out$converged)) {
+        case_info <- paste(
+          "counts =", paste(counts, collapse = ","),
+          "alpha =", prior[1], "beta =", prior[2]
+        )
+        expect_true(out$N_lwr <= out$N, info = case_info)
+        expect_true(out$N_upr >= out$N, info = case_info)
+      }
+    }
+  }
+
+  regression <- carle_strub_estimate(
+    c(2, 0), alpha = 0.1, beta = 5, quiet = TRUE
+  )
+  expect_identical(regression$N, 26)
+  expect_lte(regression$N_lwr, regression$N)
+  expect_gte(regression$N_upr, regression$N)
+})
+
+test_that("constant-memory Carle-Strub interval matches exhaustive search", {
+  exhaustive_weighted <- function(counts, N_hat, alpha, beta,
+                                  level = 0.95, cap_mult = 50) {
+    k <- length(counts)
+    total <- sum(counts)
+    weighted_removed <- sum((k - seq_len(k)) * counts)
+    cap <- floor(max(total * cap_mult, total + 300,
+                     N_hat * cap_mult, N_hat + 300))
+    candidates <- seq.int(total, cap)
+    failures <- k * candidates - weighted_removed - total
+    ll <- lgamma(candidates + 1) - lgamma(candidates - total + 1) +
+      lbeta(total + alpha, failures + beta)
+    accepted <- 2 * (max(ll) - ll) <= stats::qchisq(level, 1)
+    upper <- max(candidates[accepted])
+    identifiable <- upper < cap
+    list(
+      lwr = min(candidates[accepted]),
+      upr = if (identifiable) upper else Inf,
+      identifiable = identifiable
+    )
+  }
+
+  cases <- list(
+    list(counts = c(26, 0), alpha = 1, beta = 1),
+    list(counts = c(45, 18, 7), alpha = 1, beta = 1),
+    list(counts = c(2, 0), alpha = 0.1, beta = 5),
+    list(counts = c(12, 5, 1), alpha = 2, beta = 3)
+  )
+  for (case in cases) {
+    out <- carle_strub_estimate(
+      case$counts, alpha = case$alpha, beta = case$beta, quiet = TRUE
+    )
+    expect_equal(
+      electrocpue:::.carle_strub_ci_N(
+        case$counts, N_hat = out$N,
+        alpha = case$alpha, beta = case$beta
+      ),
+      exhaustive_weighted(
+        case$counts, out$N, alpha = case$alpha, beta = case$beta
+      )
+    )
+  }
+})
+
+test_that("Carle-Strub priors do not promote weak data to identifiable", {
+  counts <- c(30, 25, 20)
+  out <- carle_strub_estimate(counts, quiet = TRUE)
+  weighted <- electrocpue:::.carle_strub_ci_N(counts, N_hat = out$N)
+  data_only <- electrocpue:::.profile_ci_N(counts)
+
+  # The default prior regularizes the weighted interval, but the catch data's
+  # profile remains unbounded at the search cap. The public flag must retain
+  # that data-based distinction for downstream weak-series filtering.
+  expect_true(weighted$identifiable)
+  expect_false(data_only$identifiable)
+  expect_false(out$identifiable)
+  expect_equal(c(out$N_lwr, out$N_upr), c(weighted$lwr, weighted$upr))
+})
+
+test_that("unbounded intervals expose Inf instead of an internal search cap", {
+  profile <- electrocpue:::.profile_ci_N(c(8, 8))
+  expect_false(profile$identifiable)
+  expect_identical(profile$upr, Inf)
+
+  weighted <- electrocpue:::.carle_strub_ci_N(
+    c(2, 0), N_hat = 26, alpha = 0.1, beta = 5
+  )
+  expect_false(weighted$identifiable)
+  expect_identical(weighted$upr, Inf)
+
+  zippin <- zippin_estimate(c(8, 8), quiet = TRUE)
+  carle_strub <- carle_strub_estimate(
+    c(2, 0), alpha = 0.1, beta = 5, quiet = TRUE
+  )
+  expect_identical(zippin$N_upr, Inf)
+  expect_identical(carle_strub$N_upr, Inf)
 })
 
 test_that("constant-memory profile search matches exhaustive integer search", {
@@ -141,10 +268,11 @@ test_that("constant-memory profile search matches exhaustive integer search", {
 
     accepted <- 2 * (max(ll) - ll) <= stats::qchisq(level, 1)
     upper <- max(candidates[accepted])
+    identifiable <- upper < cap
     list(
       lwr = min(candidates[accepted]),
-      upr = upper,
-      identifiable = upper < cap
+      upr = if (identifiable) upper else Inf,
+      identifiable = identifiable
     )
   }
 

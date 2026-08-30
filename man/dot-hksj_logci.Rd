@@ -9,18 +9,19 @@
 \arguments{
 \item{d}{Per-survey density point estimates (well-identified surveys).}
 
-\item{dl, du}{Per-survey profile-likelihood density limits, aligned with
+\item{dl, du}{Per-survey likelihood-based density limits, aligned with
 \code{d}.}
 
 \item{level}{Confidence level.}
 
 \item{resolution}{Smallest density increment for each survey (one fish
 divided by reach length or area). Used only to give a zero-width discrete
-profile interval a half-unit continuity width. When \code{NULL}, a numerical
+likelihood interval a half-unit continuity width. When \code{NULL}, a numerical
 fallback is used.}
 
-\item{profile_level}{Confidence level of the supplied per-survey profile
-limits. \code{\link[=analyze_cpue]{analyze_cpue()}} currently supplies 95 percent limits.}
+\item{profile_level}{Confidence/support level of the supplied per-survey
+likelihood limits. The legacy argument name is retained for compatibility;
+\code{\link[=analyze_cpue]{analyze_cpue()}} currently supplies 95 percent limits.}
 }
 \value{
 Named numeric vector \code{c(mean, lwr, upr, n)}; all \code{NA} (with
@@ -30,7 +31,7 @@ Named numeric vector \code{c(mean, lwr, upr, n)}; all \code{NA} (with
 Pools the well-identified surveys in a group into a reach-level density
 interval. It works on the log scale, so the interval stays positive and
 matches the right-skew of removal estimates, and it combines each
-survey's profile-likelihood uncertainty (\code{v_i}, from its \code{N_lwr}/\code{N_upr})
+survey's likelihood-based uncertainty (\code{v_i}, from its \code{N_lwr}/\code{N_upr})
 with the between-survey (temporal) variation by DerSimonian-Laird random
 effects. The modified Knapp-Hartung variance uses a Student-t critical value
 and bounds its variance multiplier below by one, so identical point

@@ -2,11 +2,13 @@
 % Please edit documentation in R/cpue_population_estimation.R
 \name{.zero_catch_estimate}
 \alias{.zero_catch_estimate}
-\title{Build the zero-catch result (no detections -> zero density)}
+\title{Build the unidentifiable zero-catch result}
 \usage{
-.zero_catch_estimate(method, k)
+.zero_catch_estimate(method, k, quiet = FALSE)
 }
 \description{
-Build the zero-catch result (no detections -> zero density)
+The observed catch is zero, but with unknown capture probability the
+removal likelihood is flat in \code{N} at \code{p = 0}. Consequently there is no
+population estimate or finite abundance interval.
 }
 \keyword{internal}

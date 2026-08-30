@@ -59,6 +59,15 @@
       ! Input validation failed with 1 issue(s):
         x catch_data$effort_seconds varies within 1 reach x date x pass group(s); it must be constant across the species rows of a pass
 
+# validate_cpue_input rejects a blank species on any catch row
+
+    Code
+      validate_cpue_input(catch, snap_meta(), strict = FALSE)
+    Condition
+      Error:
+      ! Input validation failed with 1 issue(s):
+        x catch_data$species has 1 empty or whitespace-only value(s); every catch record must identify a species
+
 # single-pass series warns and returns NA
 
     Code
@@ -66,6 +75,15 @@
     Condition
       Warning:
       Single-pass series: depletion estimation is not possible; returning NA.
+
+# zero-catch series warns that abundance is unidentifiable
+
+    Code
+      invisible(estimate_population(c(0L, 0L)))
+    Condition
+      Warning:
+      Zero-catch series: abundance cannot be identified; returning NA.
+      i With unknown capture probability, no detections do not establish a zero population.
 
 # auto falls back to Carle & Strub when Zippin fails
 

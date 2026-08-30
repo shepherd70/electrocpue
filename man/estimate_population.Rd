@@ -30,10 +30,14 @@ series in a loop. Defaults to \code{FALSE}.}
 \value{
 A one-row data frame with columns: \code{method}, \code{n_passes},
 \code{catch_total}, \code{N} (population estimate), \code{N_se}, \code{N_lwr}/\code{N_upr}
-(profile-likelihood confidence limits for \code{N}; respect \code{N >= T} and
-are asymmetric), \code{p} (per-pass capture probability), \code{p_se},
-\code{converged} (logical), \code{identifiable} (logical; \code{FALSE} when the data
-cannot bound \code{N} from above -- typically low capture probability),
+(method-aligned likelihood-ratio limits for \code{N}; Zippin uses the
+profile likelihood and Carle & Strub uses its prior-weighted likelihood;
+both respect \code{N >= T} and are asymmetric; \code{N_upr = Inf} explicitly marks
+an unbounded upper limit), \code{p} (per-pass capture probability), \code{p_se},
+\code{converged} (logical), \code{identifiable} (logical; \code{FALSE} when either the
+data-only profile likelihood or the reported method-aligned interval
+cannot bound \code{N} from above -- typically at low capture probability;
+an informative prior never promotes data identifiability),
 and \code{note} (one of \code{"ok"}, \code{"single_pass"}, \code{"zero_catch"},
 \code{"model_failure"}, \code{"no_convergence"}, \code{"assumption_violated"}).
 }
@@ -47,10 +51,14 @@ when its model is valid and falls back to Carle & Strub otherwise.
 \details{
 Point estimates and variances follow the standard removal formulae
 (Zippin 1956, 1958; Carle & Strub 1978) as implemented in the FSA
-package, so results are directly comparable to \code{FSA::removal()}. A
-zero total catch is reported as \code{N = 0} (no fish detected -> zero
-density) rather than as a model failure, which is the more useful
-convention for downstream CPUE work.
+package, so results are directly comparable to \code{FSA::removal()}.
+
+An all-zero catch series cannot identify abundance when capture
+probability is unknown: at \code{p = 0}, every possible \code{N} has the same
+maximized likelihood. It is therefore returned as \code{N = NA},
+\code{converged = FALSE}, and \code{identifiable = FALSE}. The observed catch and
+CPUE remain zero downstream, but no zero population estimate or
+zero-width abundance interval is asserted.
 
 The removal model assumes catch declines across passes as the local
 population is depleted, so the first pass should catch the most fish.

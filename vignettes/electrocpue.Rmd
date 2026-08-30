@@ -97,8 +97,8 @@ are returned; areal density is `NA` when reach area is unavailable.
 `summarize_cpue()` collapses the repeat visits per reach to a single
 reach × species summary with a confidence interval on density. The reported
 density is a random-effects pooled geometric mean, and its interval combines
-each survey's profile-likelihood uncertainty with between-survey variation on
-the log scale. A reach is flagged `weak`
+each survey's method-aligned likelihood uncertainty with between-survey
+variation on the log scale. A reach is flagged `weak`
 (and `n_identified` records how many surveys backed the interval) when
 too few surveys are well enough identified to support it — at low capture
 probability the removal estimate is biased, so the interval is withheld

@@ -26,6 +26,18 @@ You can install the development version of electrocpue from
 pak::pak("shepherd70/electrocpue")
 ```
 
+## Upgrading to 0.3.0
+
+All-zero removal series retain an observed `catch_total` and CPUE of
+zero, but their abundance fields are now `NA` with `converged = FALSE`.
+Use the observed fields for a zero catch and check `converged` before
+using `N`.
+
+An abundance interval that cannot be bounded above now reports
+`N_upr = Inf` instead of a finite internal search cap. Check
+`identifiable` or `is.finite(N_upr)` before using an upper abundance
+limit.
+
 ## Workflow
 
 The package follows a four-step workflow: **validate → estimate →

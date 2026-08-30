@@ -400,11 +400,27 @@ test_that("reach-date with all-NA species is reported", {
   expect_gt(length(err$failures), 0)
 })
 
-test_that("mixed empty and valid species within a reach-date still passes", {
-  # One valid species in the group is enough
+test_that("every row requires a non-empty species identifier", {
   catch <- make_catch()
   catch$species[catch$reach_id == "R1" & catch$pass_number != 1L] <- ""
-  expect_no_error(validate_cpue_input(catch, make_meta(), strict = FALSE))
+  err <- catch_cpue_error(catch, make_meta(), strict = FALSE)
+  expect_true(any(grepl("every catch record", err$failures)))
+})
+
+test_that("whitespace-only species identifiers are rejected", {
+  catch <- make_catch()
+  catch$species[2] <- "   \t"
+  err <- catch_cpue_error(catch, make_meta(), strict = FALSE)
+  expect_true(any(grepl("whitespace-only", err$failures)))
+})
+
+test_that("wrong-typed species is reported by the classed validator", {
+  catch <- make_catch()
+  catch$species <- factor(catch$species)
+  expect_error(
+    validate_cpue_input(catch, make_meta(), strict = FALSE),
+    class = "cpue_validation_error"
+  )
 })
 
 # ---- Optional column advisories (strict mode) --------------------------------

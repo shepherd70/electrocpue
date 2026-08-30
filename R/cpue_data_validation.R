@@ -23,7 +23,7 @@
 #               9. Check reach extent (length_m, area_m2) > 0 and finite for the
 #                  reaches catch_data actually references
 #              10. Check reach_id consistency across tables
-#              11. Check species present for every reach x date
+#              11. Check that every catch row identifies a species
 #              12. Collate failures; abort once via the kernel's
 #                  validation_abort() with class cpue_validation_error
 # Dependencies: tritonIngest - shared validation kernel
@@ -83,7 +83,8 @@
 #' Both tables must contain at least one row, and `reach_metadata` must contain
 #' exactly one row per `reach_id`. Effort and sampled reach extents used as
 #' denominators must be finite and positive; `area_m2` may be `NA` when it is
-#' unavailable.
+#' unavailable. Every catch row must have a non-missing, non-blank species
+#' identifier.
 #'
 #' @param catch_data A long-format catch data frame. Required columns:
 #'   `reach_id` (chr), `date` (Date), `pass_number` (int), `species`
@@ -486,10 +487,12 @@ check_reach_id_consistency <- function(catch_data, reach_metadata) {
 }
 
 
-#' Check that every reach x date has at least one species record
+#' Check that every catch record identifies a species
 #'
-#' Empty strings and NA both fail this check. Whitespace-only strings
-#' currently pass; tighten with `trimws()` if needed in future.
+#' Every row contributes a count to a species-specific removal series, so an
+#' empty identifier cannot be rescued by another valid species elsewhere in
+#' the same reach x date. Empty and whitespace-only strings fail. `NA` values
+#' are reported by the shared required-column NA check.
 #'
 #' @param catch_data See [validate_cpue_input()].
 #'
@@ -498,26 +501,19 @@ check_reach_id_consistency <- function(catch_data, reach_metadata) {
 #' @keywords internal
 check_species_present <- function(catch_data) {
 
-  required <- c("reach_id", "date", "species")
-  if (!all(required %in% names(catch_data))) return(character(0))
+  if (!"species" %in% names(catch_data) ||
+      !is.character(catch_data$species)) {
+    return(character(0))
+  }
 
-  empty <- catch_data |>
-    dplyr::group_by(.data$reach_id, .data$date) |>
-    dplyr::summarise(
-      any_species = any(
-        !is.na(.data$species) & nzchar(.data$species)
-      ),
-      .groups = "drop"
-    ) |>
-    dplyr::filter(!.data$any_species)
+  blank <- !is.na(catch_data$species) & !nzchar(trimws(catch_data$species))
+  bad_n <- sum(blank)
+  if (bad_n == 0) return(character(0))
 
-  if (nrow(empty) == 0) return(character(0))
-
-  purrr::pmap_chr(empty, function(reach_id, date, ...) {
-    as.character(glue::glue(
-      "No species recorded for reach_id='{reach_id}', date={date}"
-    ))
-  })
+  as.character(glue::glue(
+    "catch_data$species has {bad_n} empty or whitespace-only value(s); ",
+    "every catch record must identify a species"
+  ))
 }
 
 

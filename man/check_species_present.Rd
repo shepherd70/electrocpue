@@ -2,7 +2,7 @@
 % Please edit documentation in R/cpue_data_validation.R
 \name{check_species_present}
 \alias{check_species_present}
-\title{Check that every reach x date has at least one species record}
+\title{Check that every catch record identifies a species}
 \usage{
 check_species_present(catch_data)
 }
@@ -13,7 +13,9 @@ check_species_present(catch_data)
 Character vector of failure messages.
 }
 \description{
-Empty strings and NA both fail this check. Whitespace-only strings
-currently pass; tighten with \code{trimws()} if needed in future.
+Every row contributes a count to a species-specific removal series, so an
+empty identifier cannot be rescued by another valid species elsewhere in
+the same reach x date. Empty and whitespace-only strings fail. \code{NA} values
+are reported by the shared required-column NA check.
 }
 \keyword{internal}
