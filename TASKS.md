@@ -55,8 +55,11 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 
 ### Documentation & README
 - [x] Replace README.Rmd boilerplate with real package description and quick-start example (README.Rmd + matching static README.md with verified output)
-- [ ] Add `pkgdown` site configuration (optional)
-- [ ] Add `CONTRIBUTING.md` guidelines
+- [x] Add `pkgdown` site configuration — `_pkgdown.yml` uses Bootstrap 5,
+  supports light/dark switching, groups the public API by workflow, and exposes
+  the worked-example vignette. Site publication remains a separate decision.
+- [x] Add `CONTRIBUTING.md` guidelines — covers setup, generated documentation,
+  statistical regression expectations, local checks, and the CI matrix.
 
 ### Release Prep
 - [x] Bump version to `0.1.0` for first stable release (also fixed placeholder maintainer email; NEWS.md rewritten for 0.1.0)
@@ -143,6 +146,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 - [x] Open the post-v0.3.0 development cycle as `0.3.0.9000`.
 - [x] Upgrade both workflow checkout steps from `actions/checkout@v4` to v6,
   moving them to Node.js 24 and clearing the release run's deprecation warning.
+- [x] Merge PR #14 as `bbb8256`; its post-merge `main` run passed all six jobs.
 
 ---
 

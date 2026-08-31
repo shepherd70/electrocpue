@@ -13,7 +13,8 @@ Description: Tools for analyzing multi-pass electrofishing data,
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-URL: https://github.com/shepherd70/electrocpue
+URL: https://shepherd70.github.io/electrocpue/,
+    https://github.com/shepherd70/electrocpue
 BugReports: https://github.com/shepherd70/electrocpue/issues
 Suggests:
     DT,

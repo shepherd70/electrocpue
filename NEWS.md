@@ -1,5 +1,12 @@
 # electrocpue (development version)
 
+## Documentation
+
+* Added a Bootstrap 5 `pkgdown` configuration with a curated API reference and
+  the complete worked-example vignette.
+* Added contribution guidelines covering development setup, generated files,
+  statistical regression tests, package checks, and website validation.
+
 ## CI maintenance
 
 * GitHub Actions now uses `actions/checkout@v6`, moving checkout to the

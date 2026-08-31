@@ -1,0 +1,36 @@
+url: https://shepherd70.github.io/electrocpue/
+
+template:
+  bootstrap: 5
+  light-switch: true
+
+development:
+  mode: auto
+
+reference:
+- title: End-to-end workflow
+  desc: Validate, reshape, analyze, and summarize electrofishing surveys.
+  contents:
+  - validate_cpue_input
+  - build_pass_matrix
+  - analyze_cpue
+  - summarize_cpue
+- title: Population estimation
+  desc: Fit removal-depletion abundance estimators to a pass-count series.
+  contents:
+  - estimate_population
+  - zippin_estimate
+  - carle_strub_estimate
+- title: Interactive application
+  contents:
+  - run_app
+- title: Example data
+  contents:
+  - example_catch
+  - example_reach
+
+articles:
+- title: Get started
+  navbar: ~
+  contents:
+  - electrocpue
