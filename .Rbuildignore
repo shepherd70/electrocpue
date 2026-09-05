@@ -11,3 +11,5 @@
 ^_pkgdown\.yml$
 ^docs$
 ^CONTRIBUTING\.md$
+^_site$
+^pkgdown$
