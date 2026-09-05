@@ -6,6 +6,9 @@
   the complete worked-example vignette.
 * Added contribution guidelines covering development setup, generated files,
   statistical regression tests, package checks, and website validation.
+* The package website is now published to GitHub Pages from `main` by a
+  `pkgdown` workflow. Local builds write to the ignored `_site/` directory
+  so they never collide with the audit reports kept under `docs/`.
 
 ## CI maintenance
 

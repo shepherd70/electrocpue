@@ -57,7 +57,11 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 - [x] Replace README.Rmd boilerplate with real package description and quick-start example (README.Rmd + matching static README.md with verified output)
 - [x] Add `pkgdown` site configuration — `_pkgdown.yml` uses Bootstrap 5,
   supports light/dark switching, groups the public API by workflow, and exposes
-  the worked-example vignette. Site publication remains a separate decision.
+  the worked-example vignette. **Published 2026-09-05:** `pkgdown.yaml`
+  builds the site on every push to `main` and deploys it to the `gh-pages`
+  branch, served at <https://shepherd70.github.io/electrocpue/>. The site
+  builds to the ignored `_site/` directory (`development: mode: release`) so
+  audit reports under `docs/` are untouched.
 - [x] Add `CONTRIBUTING.md` guidelines — covers setup, generated documentation,
   statistical regression expectations, local checks, and the CI matrix.
 
@@ -149,6 +153,10 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` complete
 - [x] Merge PR #14 as `bbb8256`; its post-merge `main` run passed all six jobs.
 
 ---
+
+### Website
+- [x] Publish the `pkgdown` site to GitHub Pages via a dedicated workflow
+  (2026-09-05).
 
 ## Notes
 

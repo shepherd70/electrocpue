@@ -76,6 +76,9 @@ Rscript -e 'pkgdown::check_pkgdown()'
 Rscript -e 'pkgdown::build_site()'
 ```
 
+The site builds into the ignored `_site/` directory. Merges to `main` publish
+it to GitHub Pages automatically through `.github/workflows/pkgdown.yaml`.
+
 Pull requests run package checks on macOS, Windows, and multiple Linux/R
 versions, plus a Linux PDF-manual build. Please investigate every failure,
 including failures that occur only on one platform.
