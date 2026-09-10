@@ -37,7 +37,7 @@ needed only to reproduce the PDF-reference-manual CI job.
 - Add or update `testthat` coverage for every behavior change. Statistical
   changes should include representative estimates, boundary cases, and failure
   or non-identifiability cases where applicable.
-- Update `NEWS.md` for user-visible changes and `TASKS.md` when completing a
+- Update `NEWS.md` for user-visible changes and `docs/TASKS.md` when completing a
   tracked item.
 - Edit `README.Rmd`, not the generated `README.md`. Edit roxygen comments, not
   generated files in `man/` or `NAMESPACE`.
