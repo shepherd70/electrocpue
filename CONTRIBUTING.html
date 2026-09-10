@@ -60,7 +60,7 @@
 <h2 id="making-changes">Making changes<a class="anchor" aria-label="anchor" href="#making-changes"></a></h2>
 <ul><li>Follow the style of the surrounding R code and use roxygen comments for function documentation.</li>
 <li>Add or update <code>testthat</code> coverage for every behavior change. Statistical changes should include representative estimates, boundary cases, and failure or non-identifiability cases where applicable.</li>
-<li>Update <code>NEWS.md</code> for user-visible changes and <code>TASKS.md</code> when completing a tracked item.</li>
+<li>Update <code>NEWS.md</code> for user-visible changes and <code>docs/TASKS.md</code> when completing a tracked item.</li>
 <li>Edit <code>README.Rmd</code>, not the generated <code>README.md</code>. Edit roxygen comments, not generated files in <code>man/</code> or <code>NAMESPACE</code>.</li>
 <li>Keep optional Shiny and plotting dependencies guarded with <code><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace()</a></code> unless they become runtime requirements.</li>
 </ul><p>Regenerate affected documentation with:</p>
